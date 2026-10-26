@@ -1,0 +1,33 @@
+{
+  "name": "Moodboard Studio",
+  "short_name": "Moodboard",
+  "description": "Platform moodboard profesional untuk arsitek & desainer interior.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fd8502",
+  "theme_color": "#fd8502",
+  "icons": [
+    {
+      "src": "/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

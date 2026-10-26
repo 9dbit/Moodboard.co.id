@@ -1,0 +1,17 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+# Private runtime configuration and migration exports
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.dump
+/migration-data/
+/moodboard-*-migration.zip
+/moodboard-transfer.txt
+/moodboard-runtime-transfer.txt

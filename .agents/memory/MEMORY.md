@@ -1,0 +1,7 @@
+- [html2canvas same-origin asset CORS](html2canvas-asset-cors.md) — bundled/same-origin `<img>` for html2canvas export must NOT set crossOrigin or the canvas taints; only remote logos do.
+- [Post-merge dependencies](post-merge-dependencies.md) — cached builds may hide firewall-blocked dependencies; verify clean installation without unplanned runtime upgrades.
+- [Studio logo transparency](studio-logo-transparency.md) — remove exterior white logo mattes without erasing internal white artwork or altering source uploads.
+- [Export caption fidelity](export-caption-fidelity.md) — exported descriptions must remain complete and vertically centered, not inherit editor truncation.
+- [Export image recovery](export-image-recovery.md) — inspect and normalize problem images server-side; never decode a whole project into mobile-browser data URLs.
+- [Page selector fidelity](page-selector-fidelity.md) — thumbnails must match the responsive main preview, not approximate page contents.
+- [Mobile Safari masonry](mobile-safari-masonry.md) — never leave masonry cards transformed at rest; Safari may hide or displace multi-column children.
