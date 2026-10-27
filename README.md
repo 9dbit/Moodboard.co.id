@@ -30,7 +30,9 @@ Layanan membutuhkan PostgreSQL dan bucket S3. Gunakan variabel referensi Railway
 
 `PRIVATE_OBJECT_DIR` berformat `/<bucket>/<prefix-private>` dan `PUBLIC_OBJECT_SEARCH_PATHS` berisi path publik dengan format yang sama. Pertahankan prefix ketika memindahkan objek dari Replit agar URL `/objects/uploads/...` tetap berlaku. Metadata ACL disimpan bersama objek S3. Alur upload URL memerlukan login.
 
-Salin konfigurasi instance Clerk yang sama ke `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, dan `VITE_CLERK_PUBLISHABLE_KEY` agar akun pengguna tetap terhubung. Nilai `VITE_*` harus tersedia saat build.
+Salin konfigurasi instance **Production** Clerk yang sama dengan aplikasi yang dipublikasikan ke `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, dan `VITE_CLERK_PUBLISHABLE_KEY` agar akun pengguna tetap terhubung. Kunci workspace Development berbeda dari kunci Production. Nilai `VITE_*` harus tersedia saat build. Jika sumber memakai proxy Clerk, isi `VITE_CLERK_PROXY_URL=/api/__clerk`.
+
+Migrasikan database melalui **Tools → Database → Production Database → Settings** di Replit. `DATABASE_URL` pada Shell workspace mengarah ke Development dan bukan database situs yang dipublikasikan. Pertahankan ID pengguna lama beserta klaim Clerk `userId` agar kepemilikan proyek tetap sama.
 
 Fitur AI memakai `OPENAI_API_KEY`. Email memakai `RESEND_API_KEY` dan `RESEND_FROM_EMAIL`. Set `SITE_URL` ke URL aplikasi. Login admin membutuhkan `ADMIN_EMAIL` dan `ADMIN_PASSWORD`; password tidak memiliki fallback bawaan.
 

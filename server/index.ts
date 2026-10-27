@@ -5,12 +5,10 @@ import { createServer } from "http";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
-import { publishableKeyFromHost } from "@clerk/shared/keys";
 import { pool } from "./db";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
-  getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 
 const app = express();
@@ -47,12 +45,7 @@ app.use(
 app.use(express.urlencoded({ extended: false }));
 
 app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
+  clerkMiddleware({ publishableKey: process.env.CLERK_PUBLISHABLE_KEY }),
 );
 
 export function log(message: string, source = "express") {
