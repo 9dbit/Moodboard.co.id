@@ -2,7 +2,7 @@ import type { Express, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { requireAuth } from "./middlewares/requireAuth";
-import { getAuth } from "@clerk/express";
+import { issueActivationLink, authRateLimit } from "./auth";
 import { insertProjectSchema, insertPinSchema, type Pin } from "@shared/schema";
 import OpenAI from "openai";
 import { z } from "zod";
@@ -15,7 +15,6 @@ import { fetchRemoteImage, inspectImageBuffer, optimizeImage } from "./image-rec
 import { describeDesignImage } from "./describe-image";
 const isAuthenticated = requireAuth;
 
-const ADMIN_EMAILS = ["moodboardstudio.id@gmail.com", "9dragons.project@gmail.com"];
 const ADMIN_CREDENTIALS = {
   email: process.env.ADMIN_EMAIL || "moodboardstudio.id@gmail.com",
   password: process.env.ADMIN_PASSWORD
@@ -39,28 +38,14 @@ const isAdminSession: RequestHandler = (req: any, res, next) => {
   next();
 };
 
-const isAdmin: RequestHandler = async (req: any, res, next) => {
-  const token = req.headers["x-admin-token"] as string || req.cookies?.adminToken;
-  if (token) {
-    const session = adminSessions.get(token);
-    if (session && session.expiresAt >= Date.now()) {
-      req.adminEmail = session.email;
-      return next();
-    }
-  }
-  const email = getAuth(req).sessionClaims?.email as string | undefined;
-  if (email && ADMIN_EMAILS.includes(email)) {
-    return next();
-  }
-  return res.status(403).json({ message: "Forbidden: Admin access required" });
-};
+// Administrator access always requires the separately configured admin password.
+const isAdmin = isAdminSession;
 
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
   if (!_openai) {
     _openai = new OpenAI({
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      apiKey: process.env.OPENAI_API_KEY,
     });
   }
   return _openai;
@@ -1600,7 +1585,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
     }
   });
 
-  app.post("/api/admin/login", async (req, res) => {
+  app.post("/api/admin/login", authRateLimit("admin-login", 12), async (req, res) => {
     try {
       const { email, password } = req.body;
       if (ADMIN_CREDENTIALS.password && email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
@@ -1630,10 +1615,6 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
         if (session && session.expiresAt >= Date.now()) {
           return res.json({ isAdmin: true, email: session.email });
         }
-      }
-      const email = getAuth(req).sessionClaims?.email as string | undefined;
-      if (email && ADMIN_EMAILS.includes(email)) {
-        return res.json({ isAdmin: true, email });
       }
       res.json({ isAdmin: false });
     } catch {
@@ -1693,6 +1674,17 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
     } catch (error) {
       console.error("Admin users error:", error);
       res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.post("/api/admin/users/:id/activation", isAdminSession, async (req, res) => {
+    try {
+      const email = z.string().trim().email().max(254).optional().parse(req.body?.email);
+      const siteUrl = process.env.SITE_URL || `${req.protocol}://${req.get("host")}`;
+      const result = await issueActivationLink(String(req.params.id), email, siteUrl);
+      res.set("Cache-Control", "no-store").json(result);
+    } catch (error: any) {
+      res.status(error.status || (error.name === "ZodError" ? 400 : 500)).json({ message: error.status ? error.message : "Unable to create an activation link. Check the account email." });
     }
   });
 
@@ -1938,7 +1930,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
         return res.json(existing[0]);
       }
       const label = typeof req.body.label === "string" ? req.body.label.trim() : "My Affiliate Code";
-      const claims = getAuth(req).sessionClaims;
+      const claims = req.dbUser;
       const userName = ((claims?.firstName as string | undefined) || (claims?.email as string | undefined) || "user").toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 6);
       let newCode = null;
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -2015,7 +2007,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: "User not found" });
-      const claims = getAuth(req).sessionClaims;
+      const claims = req.dbUser;
 
       const { plan } = req.body as { plan: "lite" | "pro" };
       if (!plan || !["lite", "pro"].includes(plan)) {

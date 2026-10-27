@@ -3,13 +3,9 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import cookieParser from "cookie-parser";
-import cors from "cors";
-import { clerkMiddleware } from "@clerk/express";
+import { initializeAuthSchema, loadSession, registerAuthRoutes, sameOriginGuard } from "./auth";
 import { pool } from "./db";
-import {
-  CLERK_PROXY_PATH,
-  clerkProxyMiddleware,
-} from "./middlewares/clerkProxyMiddleware";
+
 
 const app = express();
 const httpServer = createServer(app);
@@ -30,9 +26,9 @@ declare module "http" {
   }
 }
 
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-
-app.use(cors({ credentials: true, origin: true }));
+app.disable("x-powered-by");
+app.use("/api", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+app.use(sameOriginGuard);
 app.use(cookieParser());
 app.use(
   express.json({
@@ -44,9 +40,7 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
-app.use(
-  clerkMiddleware({ publishableKey: process.env.CLERK_PUBLISHABLE_KEY }),
-);
+
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -75,6 +69,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await initializeAuthSchema();
+  app.use("/api", loadSession);
+  registerAuthRoutes(app);
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

@@ -27,6 +27,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -396,6 +397,121 @@ function DistributionBar({ label, count, total, color }: { label: string; count:
   );
 }
 
+function AccountAccessDialog({ user }: { user: AdminUser }) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState(user.email || "");
+  const [activation, setActivation] = useState<{ activationUrl: string; expiresAt: string } | null>(null);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const createActivation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/activation`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "Could not create an account access link.");
+      return result as { activationUrl: string; expiresAt: string };
+    },
+    onSuccess: (result) => {
+      setError("");
+      setActivation(result);
+    },
+    onError: (cause: Error) => setError(cause.message),
+  });
+
+  const changeOpen = (nextOpen: boolean) => {
+    // Discard the bearer link when the dialog closes; it is never persisted in the browser.
+    if (!nextOpen && createActivation.isPending) return;
+    setOpen(nextOpen);
+    setEmail(user.email || "");
+    setActivation(null);
+    setError("");
+    setCopied(false);
+    createActivation.reset();
+  };
+
+  const copyLink = async () => {
+    if (!activation) return;
+    try {
+      await navigator.clipboard.writeText(activation.activationUrl);
+      setCopied(true);
+    } catch {
+      toast({ title: "Select and copy the link below", variant: "destructive" });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-1" data-testid={`button-account-access-${user.id}`}>
+          <Key className="w-3 h-3" />
+          Account access
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Set or reset account password</DialogTitle>
+          <DialogDescription>
+            Verify the account owner's identity before sharing a password setup link. Their existing projects and subscription stay with this account.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-md bg-muted p-3 text-sm space-y-1">
+          <p className="font-medium">{[user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Existing account"}</p>
+          <p className="text-xs text-muted-foreground break-all">Account ID: {user.id}</p>
+          <p className="text-xs text-muted-foreground">{user.projectCount} projects</p>
+        </div>
+        {activation ? (
+          <div className="space-y-3">
+            <p className="text-sm">Share this link privately with the verified owner. It can be used once and expires at {new Date(activation.expiresAt).toLocaleString()}.</p>
+            <Label htmlFor={`activation-link-${user.id}`}>Password setup link</Label>
+            <Input
+              id={`activation-link-${user.id}`}
+              value={activation.activationUrl}
+              readOnly
+              autoComplete="off"
+              onFocus={(event) => event.currentTarget.select()}
+              data-testid="input-account-activation-link"
+            />
+            <Button onClick={copyLink} className="gap-2" data-testid="button-copy-account-activation">
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copied ? "Copied" : "Copy private link"}
+            </Button>
+          </div>
+        ) : (
+          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); createActivation.mutate(); }}>
+            <div className="space-y-2">
+              <Label htmlFor={`activation-email-${user.id}`}>Account email</Label>
+              <Input
+                id={`activation-email-${user.id}`}
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                readOnly={Boolean(user.email)}
+                required
+                maxLength={254}
+                autoComplete="off"
+                data-testid="input-account-activation-email"
+              />
+              {!user.email && <p className="text-xs text-muted-foreground">This account has no saved email. Enter an address confirmed with its owner.</p>}
+            </div>
+            <p className="text-xs text-muted-foreground">The link expires after 30 minutes. No email is sent automatically.</p>
+            {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+            <Button type="submit" disabled={createActivation.isPending} data-testid="button-create-account-activation">
+              {createActivation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              {createActivation.isPending ? "Creating link..." : "Create private link"}
+            </Button>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function UsersTab() {
   const [search, setSearch] = useState("");
   const [tierFilter, setTierFilter] = useState("all");
@@ -535,44 +651,47 @@ function UsersTab() {
                       {u.trialExpiresAt ? new Date(u.trialExpiresAt).toLocaleDateString() : "Not set"}
                     </TableCell>
                     <TableCell>
-                      <Dialog open={extendUserId === u.id} onOpenChange={(open) => !open && setExtendUserId(null)}>
-                        <DialogTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            onClick={() => setExtendUserId(u.id)}
-                            data-testid={`button-extend-trial-${u.id}`}
-                          >
-                            <Clock className="w-3 h-3" />
-                            Extend
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Extend Trial - {u.email}</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4 pt-2">
-                            <div>
-                              <label className="text-sm text-muted-foreground">Days to add</label>
-                              <Input
-                                type="number"
-                                value={extendDays}
-                                onChange={(e) => setExtendDays(e.target.value)}
-                                min="1"
-                                data-testid="input-extend-days"
-                              />
-                            </div>
+                      <div className="flex flex-wrap gap-2">
+                        <AccountAccessDialog user={u} />
+                        <Dialog open={extendUserId === u.id} onOpenChange={(open) => !open && setExtendUserId(null)}>
+                          <DialogTrigger asChild>
                             <Button
-                              onClick={() => extendTrialMutation.mutate({ userId: u.id, days: parseInt(extendDays) || 7 })}
-                              disabled={extendTrialMutation.isPending}
-                              data-testid="button-confirm-extend"
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              onClick={() => setExtendUserId(u.id)}
+                              data-testid={`button-extend-trial-${u.id}`}
                             >
-                              {extendTrialMutation.isPending ? "Extending..." : `Extend by ${extendDays} days`}
+                              <Clock className="w-3 h-3" />
+                              Extend
                             </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Extend Trial - {u.email}</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 pt-2">
+                              <div>
+                                <label className="text-sm text-muted-foreground">Days to add</label>
+                                <Input
+                                  type="number"
+                                  value={extendDays}
+                                  onChange={(e) => setExtendDays(e.target.value)}
+                                  min="1"
+                                  data-testid="input-extend-days"
+                                />
+                              </div>
+                              <Button
+                                onClick={() => extendTrialMutation.mutate({ userId: u.id, days: parseInt(extendDays) || 7 })}
+                                disabled={extendTrialMutation.isPending}
+                                data-testid="button-confirm-extend"
+                              >
+                                {extendTrialMutation.isPending ? "Extending..." : `Extend by ${extendDays} days`}
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </TableCell>
                   </TableRow>
                   {expandedUser === u.id && u.clients.length > 0 && (

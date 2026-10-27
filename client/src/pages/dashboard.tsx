@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { useClerk, useUser } from "@clerk/react";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -127,8 +127,7 @@ const projectCategoryOptions = [
 ];
 
 export default function Dashboard() {
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { user, signOut } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [showNewProject, setShowNewProject] = useState(false);
@@ -210,7 +209,7 @@ export default function Dashboard() {
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/projects", {
         title: newTitle || "Untitled Project",
-        userId: user?.externalId ?? user?.id,
+        userId: user?.id,
         studioName: "Moodboard Studio",
         designerName: [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Designer",
         projectName: newTitle || "Untitled Project",
@@ -347,7 +346,7 @@ export default function Dashboard() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2" data-testid="button-user-menu">
                   <Avatar className="w-7 h-7">
-                    <AvatarImage src={user?.imageUrl || ""} />
+                    <AvatarImage src={user?.profileImageUrl || ""} />
                     <AvatarFallback className="text-xs">
                       {user?.firstName?.[0] || "U"}
                     </AvatarFallback>

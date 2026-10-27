@@ -1,4 +1,4 @@
-import { useClerk, useUser } from "@clerk/react";
+import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,7 @@ import {
 import type { Project } from "@shared/schema";
 
 export default function Profile() {
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { user, signOut } = useAuth();
   const [, navigate] = useLocation();
 
   const { data: projects = [] } = useQuery<Project[]>({
@@ -52,7 +51,7 @@ export default function Profile() {
           <CardContent className="pt-8 pb-8">
             <div className="flex flex-col items-center gap-4 mb-8">
               <Avatar className="w-24 h-24">
-                <AvatarImage src={user?.imageUrl || ""} />
+                <AvatarImage src={user?.profileImageUrl || ""} />
                 <AvatarFallback className="text-2xl">
                   {user?.firstName?.[0] || "U"}
                 </AvatarFallback>
@@ -61,10 +60,10 @@ export default function Profile() {
                 <h1 className="text-xl font-semibold" data-testid="text-profile-name">
                   {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "User"}
                 </h1>
-                {user?.primaryEmailAddress?.emailAddress && (
+                {user?.email && (
                   <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1" data-testid="text-profile-email">
                     <Mail className="w-3.5 h-3.5" />
-                    {user.primaryEmailAddress.emailAddress}
+                    {user.email}
                   </p>
                 )}
               </div>

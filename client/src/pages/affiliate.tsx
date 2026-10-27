@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { useClerk, useUser } from "@clerk/react";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,8 +38,7 @@ import {
 } from "lucide-react";
 
 export default function AffiliatePage() {
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { user, signOut } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -154,7 +153,7 @@ export default function AffiliatePage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2" data-testid="button-affiliate-user-menu">
                   <Avatar className="w-7 h-7">
-                    <AvatarImage src={user?.imageUrl || ""} />
+                    <AvatarImage src={user?.profileImageUrl || ""} />
                     <AvatarFallback className="text-xs">
                       {user?.firstName?.[0] || "U"}
                     </AvatarFallback>

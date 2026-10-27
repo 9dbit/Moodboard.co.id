@@ -7,8 +7,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 export const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 export type AudioFormat = "wav" | "mp3" | "webm" | "mp4" | "ogg" | "unknown";
@@ -107,7 +106,7 @@ export async function ensureCompatibleFormat(
 
 /**
  * Voice Chat: User speaks, LLM responds with audio (audio-in, audio-out).
- * Uses gpt-audio model via Replit AI Integrations.
+ * Uses gpt-audio model via the OpenAI API.
  * Note: Browser records WebM/opus - convert to WAV using ffmpeg before calling this.
  */
 export async function voiceChat(
@@ -182,7 +181,7 @@ export async function voiceChatStream(
 
 /**
  * Text-to-Speech: Converts text to speech verbatim.
- * Uses gpt-audio model via Replit AI Integrations.
+ * Uses gpt-audio model via the OpenAI API.
  */
 export async function textToSpeech(
   text: string,
@@ -204,7 +203,7 @@ export async function textToSpeech(
 
 /**
  * Streaming Text-to-Speech: Converts text to speech with real-time streaming.
- * Uses gpt-audio model via Replit AI Integrations.
+ * Uses gpt-audio model via the OpenAI API.
  * Note: Streaming only supports pcm16 output format.
  */
 export async function textToSpeechStream(

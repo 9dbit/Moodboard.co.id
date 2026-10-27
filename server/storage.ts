@@ -114,9 +114,11 @@ class DatabaseStorage implements IStorage {
   }
 
   async updateProject(id: number, data: Partial<Project>): Promise<Project | undefined> {
+    // Ownership and row identity never change through an editor patch.
+    const { id: _id, userId: _userId, createdAt: _createdAt, updatedAt: _updatedAt, ...editable } = data;
     const [project] = await db
       .update(projects)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...editable, updatedAt: new Date() })
       .where(eq(projects.id, id))
       .returning();
     return project;
@@ -155,7 +157,9 @@ class DatabaseStorage implements IStorage {
   }
 
   async updatePin(id: number, data: Partial<Pin>): Promise<Pin | undefined> {
-    const [pin] = await db.update(pins).set(data).where(eq(pins.id, id)).returning();
+    // All callers, including snapshot restoration, retain the original parent.
+    const { id: _id, projectId: _projectId, createdAt: _createdAt, ...editable } = data;
+    const [pin] = await db.update(pins).set(editable).where(eq(pins.id, id)).returning();
     return pin;
   }
 

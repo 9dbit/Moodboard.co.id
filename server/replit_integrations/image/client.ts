@@ -3,13 +3,12 @@ import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
 
 export const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 /**
  * Generate an image and return as Buffer.
- * Uses gpt-image-1 model via Replit AI Integrations.
+ * Uses gpt-image-1 model via the OpenAI API.
  */
 export async function generateImageBuffer(
   prompt: string,
@@ -27,7 +26,7 @@ export async function generateImageBuffer(
 
 /**
  * Edit/combine multiple images into a composite.
- * Uses gpt-image-1 model via Replit AI Integrations.
+ * Uses gpt-image-1 model via the OpenAI API.
  */
 export async function editImages(
   imageFiles: string[],
