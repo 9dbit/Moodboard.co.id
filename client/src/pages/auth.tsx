@@ -88,6 +88,10 @@ export default function AuthPage({ register = false }: { register?: boolean }) {
               {register ? "Already have an account? " : "New to Moodboard Studio? "}
               <Link href={otherRoute} className="text-primary font-medium hover:underline">{register ? "Sign in" : "Create an account"}</Link>
             </p>
+            {!register && <div className="mt-5 space-y-3 border-t pt-5 text-center text-xs text-muted-foreground leading-relaxed">
+              <p>Existing account? Use an activation or password reset link to choose your password before your first sign in.</p>
+              <p>Administrator credentials have a separate sign in. <Link href="/admin" className="text-primary font-medium hover:underline">Open admin sign in</Link></p>
+            </div>}
             {register && <p className="mt-4 text-center text-xs text-muted-foreground leading-relaxed">
               By creating an account, you agree to our <Link href="/terms" className="underline">Terms</Link> and <Link href="/privacy" className="underline">Privacy Policy</Link>.
             </p>}

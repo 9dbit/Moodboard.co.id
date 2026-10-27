@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -154,6 +154,7 @@ function AdminLoginPage({ onLogin }: { onLogin: () => void }) {
           </div>
           <CardTitle className="text-xl">Admin Login</CardTitle>
           <p className="text-sm text-muted-foreground">Moodboard Studio Control Panel</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">Use your administrator credentials here. Your Moodboard account has its own password.</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -197,6 +198,7 @@ function AdminLoginPage({ onLogin }: { onLogin: () => void }) {
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
+          <p className="mt-5 text-center text-sm text-muted-foreground">Opening your projects? <Link href="/sign-in" className="text-primary hover:underline">Go to account sign in</Link></p>
         </CardContent>
       </Card>
     </div>
