@@ -42,7 +42,7 @@ export default function Terms() {
           <section>
             <h2 className="font-serif text-xl font-semibold mb-3">1. Acceptance of Terms</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Moodboard Studio is provided by Markstudios. By accessing or using Moodboard Studio, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our platform. These terms apply to all users, including visitors and registered users.
+              Moodboard Studio is provided by Markstudios. The Moodboard Studio integration for ChatGPT uses the verified individual publisher identity ADWIN ADHYNATA. By accessing or using Moodboard Studio, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our platform. These terms apply to all users, including visitors and registered users.
             </p>
           </section>
 

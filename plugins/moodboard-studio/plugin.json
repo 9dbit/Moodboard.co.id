@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Create, refine, and export private architecture and interior-design moodboards.",
   "author": {
-    "name": "Moodboard Studio",
+    "name": "ADWIN ADHYNATA",
     "url": "https://moodboard.co.id"
   },
   "homepage": "https://moodboard.co.id/chatgpt",
@@ -22,7 +22,7 @@
         "displayName": "Moodboard Studio",
         "shortDescription": "Create moodboards and PDFs",
         "longDescription": "Create and refine private architecture and interior-design moodboards in your connected Moodboard Studio account. Save a design brief, add image references from HTTPS URLs you choose, inspect saved images, edit reference titles and captions, and set paper size, orientation, grid, and background. Open the saved board on moodboard.co.id for the visual editor, then generate a presentation PDF.\n\nSign-in and permission approval are required. The plugin accesses only your connected account’s boards. It does not search for images, generate new images, or import Pinterest boards. Server PDF exports use a compact presentation template, so some website theme styling differs. PDF files are available for 24 hours and download links last 15 minutes; request a new link while a file is available. You can revoke access from your Moodboard profile.",
-        "developerName": "Moodboard Studio",
+        "developerName": "ADWIN ADHYNATA",
         "category": "Productivity",
         "capabilities": [
           "Read private moodboards",
@@ -76,7 +76,8 @@
               "description": "Generate and retrieve a complete presentation PDF using the persistent export workflow.",
               "prompt": "Export Reviewer — Warm Minimalist Study as a presentation PDF and give me the download link when it is ready.",
               "tools_triggered": "list_moodboards, get_moodboard, start_export, get_job_status",
-              "expected_behavior": "Start one export with a reusable idempotency key, check the job until completed or report a clear failure, and return the temporary download link. The downloaded A4 portrait PDF must contain its cover with the exact updated brief, both reference images, and the edited reference caption. Explain that server PDF layout can differ from website theme styling."
+              "expected_behavior": "Start one export with a reusable idempotency key, check the job until completed or report a clear failure, and return the temporary download link. The downloaded A4 portrait PDF must contain its cover with the exact updated brief, both reference images, and the edited reference caption. Explain that server PDF layout can differ from website theme styling.",
+              "expected_output_url": "https://moodboard.co.id/review/moodboard-studio-example.pdf"
             }
           ],
           "negative": [
@@ -98,10 +99,11 @@
           ]
         },
         "commerce": false,
-        "commerce_description": "The public beta plugin is provided at no charge. It does not sell products, initiate payments, or expose checkout tools. Any separate website plans are managed outside this plugin."
+        "commerce_description": "The public beta plugin is provided at no charge. It does not sell products, initiate payments, or expose checkout tools. Any separate website plans are managed outside this plugin.",
+        "demo_recording_url": "https://moodboard.co.id/review/moodboard-studio-walkthrough.mp4"
       },
       "publication": {
-        "release_notes": "Initial public-submission draft by Moodboard Studio, affiliated with Markstudios: nine account-scoped OAuth tools for private moodboard creation, editing, selected reference images, visual reference inspection, and complete PDF export. Public beta plugin access is provided at no charge. Publisher verification, public publication, and OpenAI review are pending.",
+        "release_notes": "Initial public-submission draft for Moodboard Studio, affiliated with Markstudios and published under the verified individual identity ADWIN ADHYNATA: nine account-scoped OAuth tools for private moodboard creation, editing, selected reference images, visual reference inspection, and complete PDF export. Public beta plugin access is provided at no charge. OpenAI review and public publication are pending.",
         "translations": {
           "id-ID": {
             "subtitle": "Buat moodboard dan PDF",

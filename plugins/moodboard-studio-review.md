@@ -9,7 +9,9 @@ The owner has specified that public beta plugin access is free. This operational
 review note is recorded in reviewer commerce details and release notes, while
 public listing descriptions remain focused on functionality and limitations.
 The owner also confirmed Moodboard Studio / Markstudios brand affiliation;
-verification of the actual legal publisher identity remains a portal step.
+The portal currently offers the verified individual identity **ADWIN ADHYNATA**.
+The owner has explicitly selected that identity for this draft while retaining
+**Moodboard Studio** as the product name and the Markstudios brand affiliation.
 
 The package is prepared for remote MCP review. It has not been submitted,
 approved, or published. The existing personal test plugin is a separate
@@ -71,11 +73,10 @@ work around this schema mismatch.
    needs organization-owner access or Apps Management Write.
 2. Complete business or applicable publishing-identity verification. The owner
    confirmed the **Moodboard Studio / Markstudios** brand affiliation; this draft
-   uses **Moodboard Studio** for `author.name` and `interface.developerName`.
-   This is a requested brand identity, not a claim that legal-entity or business
-   verification has passed. Confirm the actual legal publisher identity in the
-   portal. If its verified publication name differs, update these fields and
-   public website publisher information to match before upload.
+   uses **ADWIN ADHYNATA** for `author.name` and `interface.developerName`.
+   The verified individual identity was observed in the portal on 28 October 2026
+   and explicitly chosen by the owner. This does not claim that Markstudios has
+   separately completed business verification. Keep the product name Moodboard Studio.
 3. Verify that the website, Contact, Privacy, and Terms pages identify the same
    publisher and accurately cover official ChatGPT access.
 4. Prepare a dedicated sample reviewer account through the ordinary Moodboard
@@ -135,3 +136,16 @@ work around this schema mismatch.
 Documentation checked on 28 October 2026. Recheck the portal's actual validation
 and current requirements when submitting; the local package does not attest to
 external account or publishing state.
+
+## Prepared release evidence — 28 October 2026
+
+- Selected publisher: portal-verified individual **ADWIN ADHYNATA**, explicitly chosen by the owner. Product name: **Moodboard Studio**; Markstudios remains the confirmed brand affiliation.
+- Website and plugin beta are free; new paid checkout creation is paused before a transaction or gateway request. Existing accounts, projects, transaction history, and old-payment notifications remain intact.
+- Automated suite: 110 tests passed, zero failures or skips; typecheck/build passed and hosted CI passed.
+- All nine production MCP tools were exercised with real OAuth on a dedicated sample account. The five positive service workflows succeeded. Account isolation was tested; the other negative checks verify that unsupported operations are absent from the exposed contract. These checks do not claim that every negative prompt was replayed through ChatGPT.
+- A two-page A4 portrait PDF was downloaded and visually/textually checked for the exact updated brief, both reference images, and the edited caption.
+- Walkthrough: <https://moodboard.co.id/review/>. Direct video and example PDF are non-sensitive public review assets. The example PDF is an intentionally published static sample, separate from private expiring account exports.
+- Final ZIP download: <https://moodboard.co.id/downloads/moodboard-studio-public-1.0.0.zip>.
+- Reviewer credentials and access instructions are kept outside this repository/package and must be entered in the secure portal form.
+
+The walkthrough records the website view of production MCP/OAuth operations and their PDF result, followed by a labeled service-validation receipt. It is not presented as a recording of ChatGPT prompt selection. Reviewers should replay the supplied prompts in ChatGPT to evaluate tool selection.

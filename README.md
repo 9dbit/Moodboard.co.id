@@ -68,7 +68,7 @@ Sebelum mengalihkan domain, verifikasi jumlah baris database, kelengkapan objek,
 
 The website and current Moodboard tools are in a free public beta. `shared/release-policy.ts` controls this release policy. New paid checkout creation returns `FREE_PUBLIC_BETA` before any transaction or gateway request; existing transaction history, prior-payment notifications, and all user/project records remain available.
 
-Public distribution source is in `plugins/moodboard-studio/`; reviewer instructions stay separately in `plugins/moodboard-studio-review.md`. The public publisher is Moodboard Studio, affiliated with Markstudios; the portal must verify the actual business identity. Preparing or installing the personal plugin does not publish a directory listing.
+Public distribution source is in `plugins/moodboard-studio/`; reviewer instructions stay separately in `plugins/moodboard-studio-review.md`. The product is Moodboard Studio, affiliated with Markstudios. The owner selected the portal-verified individual publisher ADWIN ADHYNATA for this draft. Preparing or installing the personal plugin does not publish a directory listing.
 
 ```sh
 node script/validate-moodboard-plugin.mjs
