@@ -2,7 +2,7 @@ import { z } from "zod";
 import { pool } from "./db";
 import { mcpTransaction, siteOrigin } from "./mcp-auth";
 import { hashToken } from "./auth-crypto";
-import { fetchRemoteImage } from "./image-recovery";
+import { fetchSelectedReferenceImage, SelectedReferenceError } from "./selected-reference";
 import { ingestOwnedImage, deleteOwnedAsset } from "./assets";
 import { getReferenceVersion } from "./reference-service";
 
@@ -65,8 +65,9 @@ export async function addReferences(ownerId:string,id:number,key:string,refs:Arr
     if(old){if(old.input_hash!==hashToken(id+":"+digest))throw new BoardError(409,"Request key already used with different references");return old.result;}
     const ingested=[];
     for(const ref of refs){
-      const u=new URL(ref.url);if(u.protocol!=="https:")throw new BoardError(400,"References must use HTTPS");
-      const image=await fetchRemoteImage(ref.url,12000);
+      let image:Awaited<ReturnType<typeof fetchSelectedReferenceImage>>;
+      try{image=await fetchSelectedReferenceImage(ref.url);}
+      catch(error){if(error instanceof SelectedReferenceError)throw new BoardError(error.status,error.message);throw error;}
       const asset=await ingestOwnedImage(ownerId,image.buffer,image.contentType);
       uploaded.push(asset.url);ingested.push({ref,asset});
     }
