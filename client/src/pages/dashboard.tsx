@@ -67,11 +67,7 @@ import {
   BookOpen,
   Shield,
   Megaphone,
-  CreditCard,
   Sparkles,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -79,7 +75,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Project, Transaction } from "@shared/schema";
+import type { Project } from "@shared/schema";
+import { PUBLIC_BETA_LABEL } from "@shared/release-policy";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -152,58 +149,21 @@ export default function Dashboard() {
     queryKey: ["/api/admin/check"],
   });
 
-  const [showUpgrade, setShowUpgrade] = useState(false);
-  const [upgradePending, setUpgradePending] = useState<"lite" | "pro" | null>(null);
-
-  const { data: myTransactions = [] } = useQuery<Transaction[]>({
-    queryKey: ["/api/payment/transactions"],
-    enabled: showUpgrade,
-  });
-  const { data: dbUser } = useQuery<{ subscriptionTier?: string }>({
-    queryKey: ["/api/me"],
-  });
-
-  const hasPendingPayment = myTransactions.some(tx => tx.status === "pending");
-  const currentTier = dbUser?.subscriptionTier;
+  const [showBetaInfo, setShowBetaInfo] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paymentResult = params.get("payment");
     if (paymentResult === "success") {
-      toast({ title: "Payment successful!", description: "Your subscription has been upgraded. It may take a moment to reflect." });
+      toast({ title: "Payment return received", description: "The payment provider returned success. Your account updates after server confirmation; contact support for billing questions." });
       queryClient.invalidateQueries({ queryKey: ["/api/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/payment/transactions"] });
       window.history.replaceState({}, "", "/dashboard");
     } else if (paymentResult === "failed") {
-      toast({ title: "Payment failed", description: "Your payment could not be completed. Please try again.", variant: "destructive" });
+      toast({ title: "Payment failed", description: "Your payment could not be completed. New paid purchases are paused during the public beta; contact support for billing questions.", variant: "destructive" });
       window.history.replaceState({}, "", "/dashboard");
     }
   }, []);
-
-  const upgradeMutation = useMutation({
-    mutationFn: async (plan: "lite" | "pro") => {
-      const res = await apiRequest("POST", "/api/payment/create", { plan });
-      return await res.json();
-    },
-    onSuccess: (data: { paymentUrl: string }) => {
-      setUpgradePending(null);
-      if (data.paymentUrl) {
-        window.location.href = data.paymentUrl;
-      } else {
-        toast({ title: "Payment error", description: "No payment URL received.", variant: "destructive" });
-      }
-    },
-    onError: (err: unknown) => {
-      setUpgradePending(null);
-      const msg = err instanceof Error ? err.message : "Failed to initiate payment. Please try again.";
-      toast({ title: "Payment error", description: msg, variant: "destructive" });
-    },
-  });
-
-  const handleUpgrade = (plan: "lite" | "pro") => {
-    setUpgradePending(plan);
-    upgradeMutation.mutate(plan);
-  };
 
   const createProject = useMutation({
     mutationFn: async () => {
@@ -336,11 +296,11 @@ export default function Dashboard() {
               size="sm"
               variant="outline"
               className="gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10 hidden sm:flex"
-              onClick={() => setShowUpgrade(true)}
-              data-testid="button-upgrade-plan"
+              onClick={() => setShowBetaInfo(true)}
+              data-testid="button-beta-info"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              Upgrade
+              Free beta
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -876,115 +836,23 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showUpgrade} onOpenChange={setShowUpgrade}>
-        <DialogContent className="max-w-2xl" data-testid="dialog-upgrade">
+      <Dialog open={showBetaInfo} onOpenChange={setShowBetaInfo}>
+        <DialogContent className="max-w-lg" data-testid="dialog-beta-info">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
-              Upgrade Your Plan
+              {PUBLIC_BETA_LABEL}
             </DialogTitle>
             <DialogDescription>
-              Choose a plan to unlock more projects and remove watermarks.
+              Create, edit, and export moodboards without a Moodboard subscription charge during the public beta.
             </DialogDescription>
           </DialogHeader>
-
-          {currentTier && currentTier !== "free" && currentTier !== "trial" && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-sm" data-testid="banner-current-tier">
-              <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-              <span>You are currently on <span className="font-semibold capitalize">{currentTier === "lite" ? "Studio Lite" : currentTier === "pro" ? "Studio Pro" : currentTier}</span>.</span>
-            </div>
-          )}
-
-          {hasPendingPayment && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-400" data-testid="banner-pending-payment">
-              <Clock className="w-4 h-4 shrink-0" />
-              <span>You have a payment in progress. Please complete or wait for it to finish before starting a new one.</span>
-            </div>
-          )}
-
-          <div className="grid sm:grid-cols-2 gap-4 mt-2">
-            <div className={`rounded-xl border p-5 space-y-4 hover:border-primary/50 transition-colors ${currentTier === "lite" ? "border-primary/40 bg-primary/5" : ""}`}>
-              {currentTier === "lite" && (
-                <div className="flex justify-end">
-                  <span className="text-[10px] font-bold uppercase tracking-widest bg-primary/20 text-primary px-2 py-0.5 rounded-full">Current Plan</span>
-                </div>
-              )}
-              <div>
-                <h3 className="font-semibold">Studio Lite</h3>
-                <p className="text-sm text-muted-foreground mt-0.5">For growing studios</p>
-              </div>
-              <div>
-                <span className="text-3xl font-bold">Rp 88K</span>
-                <span className="text-sm text-muted-foreground ml-1">/ month</span>
-              </div>
-              <ul className="space-y-2">
-                {["20 projects / month", "No watermark", "Priority support", "All export formats"].map((f, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                className="w-full"
-                variant={currentTier === "lite" ? "outline" : "default"}
-                onClick={() => handleUpgrade("lite")}
-                disabled={upgradeMutation.isPending || hasPendingPayment}
-                data-testid="button-upgrade-lite"
-              >
-                {upgradePending === "lite" && upgradeMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Redirecting...</>
-                ) : currentTier === "lite" ? (
-                  <><CreditCard className="w-4 h-4 mr-2" />Renew Studio Lite</>
-                ) : (
-                  <><CreditCard className="w-4 h-4 mr-2" />Get Studio Lite</>
-                )}
-              </Button>
-            </div>
-
-            <div className={`rounded-xl border border-primary/40 bg-primary/5 p-5 space-y-4 relative overflow-hidden ${currentTier === "pro" ? "ring-2 ring-primary" : ""}`}>
-              <div className="absolute top-3 right-3">
-                {currentTier === "pro" ? (
-                  <span className="text-[10px] font-bold uppercase tracking-widest bg-primary/20 text-primary px-2 py-0.5 rounded-full">Current Plan</span>
-                ) : (
-                  <span className="text-[10px] font-bold uppercase tracking-widest bg-primary text-primary-foreground px-2 py-0.5 rounded-full">Popular</span>
-                )}
-              </div>
-              <div>
-                <h3 className="font-semibold">Studio Pro</h3>
-                <p className="text-sm text-muted-foreground mt-0.5">For large studios</p>
-              </div>
-              <div>
-                <span className="text-3xl font-bold">Rp 176K</span>
-                <span className="text-sm text-muted-foreground ml-1">/ month</span>
-              </div>
-              <ul className="space-y-2">
-                {["60 projects / month", "No watermark", "Priority support", "Custom branding"].map((f, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                className="w-full"
-                onClick={() => handleUpgrade("pro")}
-                disabled={upgradeMutation.isPending || hasPendingPayment}
-                data-testid="button-upgrade-pro"
-              >
-                {upgradePending === "pro" && upgradeMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Redirecting...</>
-                ) : currentTier === "pro" ? (
-                  <><CreditCard className="w-4 h-4 mr-2" />Renew Studio Pro</>
-                ) : (
-                  <><CreditCard className="w-4 h-4 mr-2" />Get Studio Pro</>
-                )}
-              </Button>
-            </div>
+          <p className="text-sm text-muted-foreground">No new paid purchases are available during the beta. Existing projects and account records are retained. Reference-image and PDF export limits still apply.</p>
+          <p className="text-sm text-muted-foreground">ChatGPT access depends on your OpenAI account and plan. Any future Moodboard pricing will be announced before you choose a paid offering.</p>
+          <div className="flex flex-wrap gap-3">
+            <a href="/chatgpt"><Button>ChatGPT connection guide</Button></a>
+            <a href="/contact"><Button variant="outline">Support and billing questions</Button></a>
           </div>
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            Payments are processed securely via 12Pay. You will be redirected to complete the payment.
-          </p>
         </DialogContent>
       </Dialog>
     </div>

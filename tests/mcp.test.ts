@@ -23,6 +23,7 @@ before(async()=>{
     CREATE TABLE IF NOT EXISTS pins(id serial PRIMARY KEY,project_id integer REFERENCES projects(id),title text,description_final text,description_ai text,width integer,height integer,position integer,source_url text);
     ALTER TABLE pins ADD COLUMN IF NOT EXISTS description_custom_input text;
     ALTER TABLE pins ADD COLUMN IF NOT EXISTS description_enabled boolean DEFAULT true;`);
+  await pool.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS description_ai text; ALTER TABLE projects ADD COLUMN IF NOT EXISTS description_enabled boolean DEFAULT true");
   const auth=await import('../server/auth');await auth.initializeAuthSchema();
   const oauth=await import('../server/mcp-auth');await oauth.initializeMcpSchema();
   const app=express();app.use(express.json());app.use(express.urlencoded({extended:false}));app.use(cookieParser());app.use('/api',auth.loadSession);auth.registerAuthRoutes(app);

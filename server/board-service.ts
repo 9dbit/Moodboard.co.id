@@ -7,16 +7,16 @@ import { ingestOwnedImage, deleteOwnedAsset } from "./assets";
 import { getReferenceVersion } from "./reference-service";
 
 export const boardPatchSchema = z.object({
-  title:z.string().trim().min(1).max(200).optional(),descriptionRaw:z.string().max(6000).optional(),
+  title:z.string().trim().min(1).max(200).optional(),descriptionRaw:z.string().max(6000).optional(),descriptionEnabled:z.boolean().optional(),
   studioName:z.string().max(160).optional(),designerName:z.string().max(160).optional(),
   paperSize:z.enum(["A4","A3","A2"]).optional(),orientation:z.enum(["horizontal","vertical"]).optional(),
   imageLayout:z.enum(["original","square","portrait_3_5","portrait_9_16","landscape_5_3","landscape_16_9"]).optional(),
   gridColumns:z.number().int().min(2).max(5).optional(),canvasBackground:z.string().regex(/^#[\da-fA-F]{6}$/).optional(),showCover:z.boolean().optional(),showFooter:z.boolean().optional(),
 }).strict();
 export const requestKey = z.string().min(8).max(120).regex(/^[a-zA-Z0-9_-]+$/);
-const columnNames: Record<string,string>={title:"title",descriptionRaw:"description_raw",studioName:"studio_name",designerName:"designer_name",paperSize:"paper_size",orientation:"orientation",imageLayout:"image_layout",gridColumns:"grid_columns",canvasBackground:"canvas_background",showCover:"show_cover",showFooter:"show_footer"};
+const columnNames: Record<string,string>={title:"title",descriptionRaw:"description_raw",descriptionEnabled:"description_enabled",studioName:"studio_name",designerName:"designer_name",paperSize:"paper_size",orientation:"orientation",imageLayout:"image_layout",gridColumns:"grid_columns",canvasBackground:"canvas_background",showCover:"show_cover",showFooter:"show_footer"};
 export class BoardError extends Error { constructor(public status:number,message:string){super(message);} }
-function view(p:any){return {id:p.id,title:p.title,description:p.description_raw,paperSize:p.paper_size,orientation:p.orientation,imageLayout:p.image_layout,gridColumns:p.grid_columns,canvasBackground:p.canvas_background,updatedAt:new Date(p.updated_at).toISOString(),url:new URL(`/editor/${p.id}`,siteOrigin()).href};}
+function view(p:any){return {id:p.id,title:p.title,description:p.description_ai||p.description_raw||"",descriptionRaw:p.description_raw||"",descriptionEnabled:p.description_enabled!==false,paperSize:p.paper_size,orientation:p.orientation,imageLayout:p.image_layout,gridColumns:p.grid_columns,canvasBackground:p.canvas_background,updatedAt:new Date(p.updated_at).toISOString(),url:new URL(`/editor/${p.id}`,siteOrigin()).href};}
 export async function listBoards(ownerId:string,offset=0,limit=20){
   const {rows}=await pool.query(`SELECT p.*, (SELECT count(*)::int FROM pins WHERE project_id=p.id) AS pin_count FROM projects p WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3`,[ownerId,limit,offset]);
   return {boards:rows.map(p=>({...view(p),pinCount:p.pin_count})),nextOffset:rows.length===limit?offset+limit:null};
@@ -45,7 +45,11 @@ export async function createBoard(ownerId:string,key:string,input:unknown){
 export async function updateBoard(ownerId:string,id:number,expectedVersion:string,input:unknown){
   const fields=boardPatchSchema.parse(input), entries=Object.entries(fields);
   if(!entries.length)throw new BoardError(400,"Provide at least one change");
-  const p=(await pool.query(`UPDATE projects SET ${entries.map(([k],i)=>columnNames[k]+'=$'+(i+4)).join(',')},updated_at=greatest(clock_timestamp(),updated_at+interval '1 millisecond')
+  const assignments=entries.map(([k],i)=>columnNames[k]+'=$'+(i+4));
+  // A newly requested brief must replace any older generated wording. Keep its
+  // visibility unchanged unless the caller explicitly edits descriptionEnabled.
+  if(fields.descriptionRaw!==undefined)assignments.push('description_ai=NULL');
+  const p=(await pool.query(`UPDATE projects SET ${assignments.join(',')},updated_at=greatest(clock_timestamp(),updated_at+interval '1 millisecond')
     WHERE id=$1 AND user_id=$2 AND date_trunc('milliseconds',updated_at)=date_trunc('milliseconds',$3::timestamp) RETURNING *`,[id,ownerId,expectedVersion,...entries.map(x=>x[1])])).rows[0];
   if(!p){await getBoard(ownerId,id);throw new BoardError(409,"The board changed. Read it again before applying edits");}
   return {board:view(p)};

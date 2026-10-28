@@ -1,0 +1,25 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "moodboard-studio": {
+      "type": "streamable-http",
+      "url": "https://moodboard.co.id/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "dcr"
+            },
+            "resource": "https://moodboard.co.id/mcp",
+            "defaultScopes": [
+              "boards:read",
+              "boards:write",
+              "exports:write"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BrandLogo } from "@/components/brand-logo";
-import { ArrowLeft, Mail, MessageSquare, MapPin } from "lucide-react";
+import { ArrowLeft, Mail, MessageSquare, BookOpen } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -75,7 +75,7 @@ export default function Contact() {
         </Link>
 
         <h1 className="font-serif text-3xl font-bold mb-2" data-testid="text-page-title">Contact Us</h1>
-        <p className="text-muted-foreground mb-8">We'd love to hear from you. Send us a message and we'll respond as soon as possible.</p>
+        <p className="text-muted-foreground mb-8">Send a support, account access, or privacy request. For ChatGPT connection issues, include the account email you intended to connect and the error you saw. Do not include passwords, API keys, or private download links.</p>
 
         <div className="grid md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
@@ -180,12 +180,12 @@ export default function Contact() {
               <CardContent className="pt-6 pb-6">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                    <MapPin className="w-5 h-5" style={{ color: "hsl(24 85% 52%)" }} />
+                    <BookOpen className="w-5 h-5" style={{ color: "hsl(24 85% 52%)" }} />
                   </div>
                   <div>
-                    <h3 className="font-medium text-sm mb-1">Location</h3>
-                    <p className="text-sm text-muted-foreground">Jakarta, Indonesia</p>
-                    <p className="text-xs text-muted-foreground mt-1">Remote-first team</p>
+                    <h3 className="font-medium text-sm mb-1">ChatGPT help</h3>
+                    <p className="text-sm text-muted-foreground"><Link href="/chatgpt" className="underline">Read the connection and PDF export guide.</Link></p>
+                    <p className="text-xs text-muted-foreground mt-1">You can manage or revoke connections from your Moodboard Profile.</p>
                   </div>
                 </div>
               </CardContent>

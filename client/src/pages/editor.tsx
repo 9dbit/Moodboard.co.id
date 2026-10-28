@@ -1051,6 +1051,7 @@ function SinglePageCanvas({
 
 function CoverPage({ project, paper, coverPin }: { project: Project; paper: ReturnType<typeof getPaperStyle>; coverPin: Pin | null }) {
   const coverRef = useRef<HTMLDivElement>(null);
+  const description = project.descriptionEnabled !== false ? project.descriptionAi || project.descriptionRaw || "" : "";
   const [coverWidth, setCoverWidth] = useState(640);
   const isFull = project.coverImageStyle === "full";
   const canvasBg = project.canvasBackground || "#ffffff";
@@ -1126,12 +1127,12 @@ function CoverPage({ project, paper, coverPin }: { project: Project; paper: Retu
               >
                 {project.title || "Moodboard"}
               </h1>
-              {project.descriptionAi && (
+              {description && (
                 <p
                   className="leading-relaxed mt-[2%] italic"
                   style={{ fontSize: `${Math.max(5, Math.min(9, coverWidth * 0.011))}px`, color: project.coverDescColor || fullCoverAutoDescColor }}
                 >
-                  {project.descriptionAi}
+                  {description}
                 </p>
               )}
               {project.clientOwnerName && (
@@ -1239,12 +1240,12 @@ function CoverPage({ project, paper, coverPin }: { project: Project; paper: Retu
             >
               {project.title || "Moodboard"}
             </h1>
-            {project.descriptionAi && (
+            {description && (
               <p
                 className="leading-relaxed mt-[2%] italic"
                 style={{ fontSize: `${Math.max(5, Math.min(9, coverWidth * 0.011))}px`, color: txtDesc }}
               >
-                {project.descriptionAi}
+                {description}
               </p>
             )}
             {project.clientOwnerName && (
@@ -2486,6 +2487,7 @@ export default function Editor() {
 
   const currentLead = leadStatusOptions.find((l) => l.value === project.leadStatus) || leadStatusOptions[1];
   const CurrentLeadIcon = currentLead.icon;
+  const description = project.descriptionEnabled !== false ? project.descriptionAi || project.descriptionRaw || "" : "";
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -3784,10 +3786,10 @@ export default function Editor() {
         })()}
 
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto" style={{ height: 'calc(100vh - 49px)' }}>
-        {project.descriptionEnabled && project.descriptionAi && (
+        {description && (
           <div className="border-b border-border/50 glass-subtle px-6 py-3">
             <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl" data-testid="text-project-description">
-              {project.descriptionAi}
+              {description}
             </p>
           </div>
         )}

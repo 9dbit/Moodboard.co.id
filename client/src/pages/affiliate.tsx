@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { FREE_PUBLIC_BETA } from "@shared/release-policy";
 import {
   Copy,
   Check,
@@ -189,10 +190,10 @@ export default function AffiliatePage() {
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
       <div>
         <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-affiliate-title">
-          Affiliate Program
+          {FREE_PUBLIC_BETA ? "Affiliate Records" : "Affiliate Program"}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Earn {feePct}% commission for every successful referral. Share your link and start earning passive income.
+          New paid purchases are paused during the free public beta. Existing referral activity and commission records remain available here.
         </p>
       </div>
 
@@ -202,9 +203,9 @@ export default function AffiliatePage() {
             <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <Sparkles className="w-7 h-7 text-primary" />
             </div>
-            <h2 className="font-semibold text-lg mb-2">Join the Affiliate Program</h2>
+            <h2 className="font-semibold text-lg mb-2">Create a Referral Link</h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
-              Generate your unique affiliate code to start sharing and earning commissions. Every subscription through your link earns you {feePct}% commission.
+              Generate a referral link to introduce Moodboard Studio to other designers. New paid purchases are paused during the public beta, so beta signups do not create paid-subscription commissions.
             </p>
             <Button
               onClick={() => generateCode.mutate()}
@@ -238,7 +239,7 @@ export default function AffiliatePage() {
                   </div>
                 </div>
                 <Badge variant="secondary" className="shrink-0">
-                  {feePct}% Commission
+                  {feePct}% recorded rate
                 </Badge>
               </div>
 
@@ -292,7 +293,7 @@ export default function AffiliatePage() {
                 <p className="text-2xl font-bold" data-testid="text-affiliate-earnings">
                   {stats?.conversions ? `${stats.conversions}x` : "0"}
                 </p>
-                <p className="text-xs text-muted-foreground">Earned Rewards</p>
+                <p className="text-xs text-muted-foreground">Recorded Rewards</p>
               </CardContent>
             </Card>
           </div>

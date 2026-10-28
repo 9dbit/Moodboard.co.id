@@ -26,16 +26,16 @@ import {
 import { useEffect, useState, useCallback } from "react";
 import { SiPinterest, SiBehance, SiDribbble } from "react-icons/si";
 import { useMetaTags } from "@/hooks/use-meta-tags";
-import { Input } from "@/components/ui/input";
-import { ChevronLeft, ChevronRight, GraduationCap, Rocket, Wand2 } from "lucide-react";
+import { FREE_PUBLIC_BETA, PUBLIC_BETA_LABEL } from "@shared/release-policy";
+import { ChevronLeft, ChevronRight, Rocket, Wand2 } from "lucide-react";
 
 export default function Landing() {
   useMetaTags({
     title: "Moodboard Studio — Platform Moodboard Profesional untuk Arsitek & Desainer Interior",
-    description: "Ubah board Pinterest menjadi presentasi desain profesional dalam hitungan menit. Import otomatis, AI descriptions, multi-layout canvas, PDF export berkualitas tinggi. Gratis 7 hari.",
+    description: "Ubah board Pinterest menjadi presentasi desain profesional dalam hitungan menit. Import otomatis, AI descriptions, multi-layout canvas, PDF export berkualitas tinggi. Gratis selama beta publik.",
     keywords: "moodboard, arsitektur, desain interior, presentasi desain, pinterest import, moodboard builder, studio arsitektur, desainer interior, PDF export, AI description",
     ogTitle: "Moodboard Studio — Moodboard Profesional dalam Hitungan Menit",
-    ogDescription: "Platform moodboard #1 untuk studio arsitektur & desain interior Indonesia. Import Pinterest, AI descriptions, PDF export presisi tinggi.",
+    ogDescription: "Buat, edit, dan ekspor moodboard desain interior dan arsitektur. Gratis selama beta publik Moodboard Studio.",
     ogUrl: "https://moodboard.co.id",
     canonical: "https://moodboard.co.id",
   });
@@ -67,7 +67,7 @@ export default function Landing() {
               How It Works
             </a>
             <a href="#pricing" className="text-sm text-muted-foreground transition-colors" data-testid="link-pricing">
-              Pricing
+              Public Beta
             </a>
           </div>
 
@@ -99,7 +99,7 @@ export default function Landing() {
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="max-w-3xl">
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight mb-6">
-              Transform Pinterest into
+              Turn design references into
               <span className="block" style={{ color: "hsl(24 85% 52%)" }}>client-ready Moodboard Presentation</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-xl leading-relaxed mb-8">
@@ -120,7 +120,7 @@ export default function Landing() {
               </a>
             </div>
             <div className="flex flex-wrap items-center justify-start gap-6">
-              {["Free 7-day trial", "No credit card", "AI-powered"].map((item, i) => (
+              {[PUBLIC_BETA_LABEL, "No credit card", "AI-powered"].map((item, i) => (
                 <div key={i} className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "hsl(24 85% 52%)" }} />
                   {item}
@@ -379,100 +379,37 @@ export default function Landing() {
 
       <section id="pricing" className="py-20 border-t border-border/50">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="max-w-2xl mb-16">
+          <div className="max-w-2xl mb-10">
             <Badge variant="secondary" className="text-xs font-medium tracking-wider uppercase mb-4">
-              Pricing
+              {FREE_PUBLIC_BETA ? PUBLIC_BETA_LABEL : "Moodboard Studio"}
             </Badge>
             <h2 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-              Simple, transparent pricing
+              Create and present during the free beta
             </h2>
             <p className="text-muted-foreground text-lg">
-              Start with a free trial. Upgrade when you're ready to grow.
+              Moodboard Studio is free during the public beta. No credit card is required, and new paid purchases are paused.
             </p>
           </div>
-
-          <div className="grid md:grid-cols-3 gap-4 max-w-4xl">
-            <Card className="hover-elevate glass" data-testid="card-plan-free">
-              <CardContent className="pt-6 pb-6">
-                <div className="mb-6">
-                  <h3 className="font-semibold text-base">Free Trial</h3>
-                  <p className="text-sm text-muted-foreground mt-1">7 days to explore</p>
-                </div>
-                <div className="mb-6">
-                  <span className="text-4xl font-bold">Free</span>
-                  <span className="text-sm text-muted-foreground ml-2">/ 7 days</span>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  {["3 projects max", "All features included", "Light watermark on export"].map((f, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "hsl(24 85% 52%)" }} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <a href="/sign-up">
-                  <Button variant="outline" className="w-full" data-testid="button-plan-free">
-                    Start Free Trial
-                  </Button>
-                </a>
-              </CardContent>
-            </Card>
-
-            <Card className="hover-elevate glass ring-2 ring-primary relative" data-testid="card-plan-lite">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <Badge variant="default" className="text-xs shadow-md">Most Popular</Badge>
+          <Card className="glass max-w-4xl border-primary/30" data-testid="card-free-public-beta">
+            <CardContent className="p-6 sm:p-8">
+              <div className="grid sm:grid-cols-3 gap-6 mb-8">
+                {[
+                  { title: "Save your references", text: "Organize selected images into private moodboards." },
+                  { title: "Refine the presentation", text: "Edit layouts, design briefs, and captions." },
+                  { title: "Export a PDF", text: "Prepare a presentation from your saved references." },
+                ].map(item => <div key={item.title}>
+                  <CheckCircle2 className="w-5 h-5 text-primary mb-2" />
+                  <h3 className="font-semibold mb-1">{item.title}</h3>
+                  <p className="text-sm text-muted-foreground">{item.text}</p>
+                </div>)}
               </div>
-              <CardContent className="pt-8 pb-6">
-                <div className="mb-6">
-                  <h3 className="font-semibold text-base">Studio Lite</h3>
-                  <p className="text-sm text-muted-foreground mt-1">For growing studios</p>
-                </div>
-                <div className="mb-6">
-                  <span className="text-4xl font-bold">Rp 88K</span>
-                  <span className="text-sm text-muted-foreground ml-2">/ month</span>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  {["20 projects / month", "No watermark", "Priority support", "All export formats"].map((f, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "hsl(24 85% 52%)" }} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <a href="/sign-up">
-                  <Button className="w-full" data-testid="button-plan-lite">
-                    Get Studio Lite
-                  </Button>
-                </a>
-              </CardContent>
-            </Card>
-
-            <Card className="hover-elevate glass" data-testid="card-plan-pro">
-              <CardContent className="pt-6 pb-6">
-                <div className="mb-6">
-                  <h3 className="font-semibold text-base">Studio Pro</h3>
-                  <p className="text-sm text-muted-foreground mt-1">For large studios</p>
-                </div>
-                <div className="mb-6">
-                  <span className="text-4xl font-bold">Rp 176K</span>
-                  <span className="text-sm text-muted-foreground ml-2">/ month</span>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  {["60 projects / month", "No watermark", "Priority support", "Custom branding"].map((f, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "hsl(24 85% 52%)" }} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <a href="/sign-up">
-                  <Button variant="outline" className="w-full" data-testid="button-plan-pro">
-                    Get Studio Pro
-                  </Button>
-                </a>
-              </CardContent>
-            </Card>
-          </div>
+              <div className="flex flex-wrap gap-3 mb-5">
+                <a href="/sign-up"><Button data-testid="button-join-public-beta">Join the free beta<ArrowRight className="w-4 h-4 ml-1" /></Button></a>
+                <a href="/chatgpt"><Button variant="outline" data-testid="button-beta-chatgpt-guide">Use with ChatGPT</Button></a>
+              </div>
+              <p className="text-xs text-muted-foreground">Reference and export limits apply. ChatGPT access depends on your OpenAI account and plan. Any future Moodboard pricing will be announced before you choose a paid offering.</p>
+            </CardContent>
+          </Card>
         </div>
       </section>
 
@@ -505,7 +442,7 @@ export default function Landing() {
               Affiliate Program
             </h2>
             <p className="text-muted-foreground max-w-2xl">
-              Earn commissions by recommending Moodboard Studio to fellow designers and studios. Share your unique link, and get rewarded for every subscription.
+              Invite fellow designers to explore Moodboard Studio. During the free public beta, new paid purchases are paused; existing referral records remain available in your account.
             </p>
           </div>
 
@@ -517,7 +454,7 @@ export default function Landing() {
                 </div>
                 <h3 className="font-semibold text-sm mb-1">Share Your Link</h3>
                 <p className="text-xs text-muted-foreground">
-                  Get a unique referral link and share it with your network via social media, email, or your website.
+                  Use your referral link to introduce Moodboard Studio to your network.
                 </p>
               </CardContent>
             </Card>
@@ -528,7 +465,7 @@ export default function Landing() {
                 </div>
                 <h3 className="font-semibold text-sm mb-1">Studios Sign Up</h3>
                 <p className="text-xs text-muted-foreground">
-                  When someone signs up through your link and subscribes, the referral is tracked automatically.
+                  Invite designers to create an account and try the free public beta.
                 </p>
               </CardContent>
             </Card>
@@ -537,9 +474,9 @@ export default function Landing() {
                 <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center mb-3">
                   <Zap className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="font-semibold text-sm mb-1">Earn Rewards</h3>
+                <h3 className="font-semibold text-sm mb-1">Review Your Referrals</h3>
                 <p className="text-xs text-muted-foreground">
-                  Receive commissions for every successful referral. The more you share, the more you earn.
+                  View existing referral activity and prior commission records in your affiliate dashboard.
                 </p>
               </CardContent>
             </Card>
@@ -547,7 +484,7 @@ export default function Landing() {
 
           <div>
             <p className="text-sm text-muted-foreground mb-4">
-              Sign up or log in to access the affiliate dashboard and start earning today.
+              Sign up or log in to access your account and existing affiliate records.
             </p>
             <a href="/sign-up">
               <Button data-testid="button-affiliate-signup">
@@ -587,16 +524,14 @@ export default function Landing() {
 
 function PromoBannerSlider() {
   const [current, setCurrent] = useState(0);
-  const [studentCode, setStudentCode] = useState("");
 
   const slides = [
     {
-      id: "student",
-      icon: GraduationCap,
-      title: "Student Special Price",
-      description: "Dapatkan harga spesial untuk mahasiswa. Masukkan student code saat checkout untuk mendapatkan diskon eksklusif.",
+      id: "beta",
+      icon: Sparkles,
+      title: PUBLIC_BETA_LABEL,
+      description: "Moodboard Studio gratis selama beta publik. Buat, edit, dan ekspor moodboard Anda. Akses ChatGPT mengikuti akun dan paket OpenAI Anda.",
       gradient: "from-amber-500/20 via-orange-500/10 to-transparent",
-      hasInput: true,
     },
     {
       id: "speed",
@@ -604,7 +539,6 @@ function PromoBannerSlider() {
       title: "Speed Up Your Deal with Client",
       description: "Moodboard Studio is the solution for speed up your deal with client. Create professional presentations in minutes, not hours.",
       gradient: "from-blue-500/20 via-indigo-500/10 to-transparent",
-      hasInput: false,
     },
     {
       id: "ai",
@@ -612,7 +546,6 @@ function PromoBannerSlider() {
       title: "Fully AI Generated Description",
       description: "Biarkan AI menulis deskripsi profesional untuk setiap gambar di moodboard Anda. Hemat waktu, tingkatkan kualitas presentasi.",
       gradient: "from-purple-500/20 via-pink-500/10 to-transparent",
-      hasInput: false,
     },
   ];
 
@@ -649,43 +582,14 @@ function PromoBannerSlider() {
                     </div>
                   </div>
 
-                  {slide.hasInput && (
-                    <div className="mt-4 max-w-sm">
-                      <label className="text-xs text-muted-foreground mb-1.5 block font-medium uppercase tracking-wider">
-                        Student Code
-                      </label>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Enter your student code"
-                          value={studentCode}
-                          onChange={(e) => setStudentCode(e.target.value)}
-                          className="text-sm"
-                          data-testid="input-student-code"
-                        />
-                        <Button
-                          variant="outline"
-                          disabled={!studentCode.trim()}
-                          onClick={() => {
-                            localStorage.setItem("student_promo_code", studentCode.trim());
-                          }}
-                          data-testid="button-apply-student-code"
-                        >
-                          Apply
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {!slide.hasInput && (
-                    <div className="mt-4">
-                      <a href="/sign-up">
-                        <Button data-testid={`button-promo-cta-${slide.id}`}>
-                          Get Started Free
-                          <ArrowRight className="w-4 h-4 ml-1" />
-                        </Button>
-                      </a>
-                    </div>
-                  )}
+                  <div className="mt-4">
+                    <a href="/sign-up">
+                      <Button data-testid={`button-promo-cta-${slide.id}`}>
+                        Join the free beta
+                        <ArrowRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </a>
+                  </div>
                 </div>
               </div>
             </CardContent>

@@ -112,7 +112,7 @@ Dibandingkan dengan cara manual atau platform lain, Moodboard Studio unggul kare
 - **AI-powered descriptions** yang memahami terminologi arsitektur
 - **Multi-layout canvas** dengan 4 mode layout berbeda
 - **PDF export** yang match 1:1 dengan tampilan canvas
-- **Harga terjangkau** mulai Rp 88K/bulan
+- **Akses Moodboard Studio gratis selama beta publik**; akses ChatGPT mengikuti akun dan paket OpenAI Anda
     `,
   },
   {
@@ -142,7 +142,7 @@ Memilih platform yang tepat untuk membuat moodboard bisa membingungkan. Berikut 
 - Fitur approval (check/reject) per gambar
 - Drag-and-drop editor dengan unlimited undo/redo
 - Lead tracking untuk pipeline klien
-- **Harga: Gratis 7 hari, mulai Rp 88K/bulan**
+- **Harga Moodboard Studio: Gratis selama beta publik**
 
 **Cocok untuk:** Studio arsitektur & interior yang butuh workflow cepat dari inspirasi ke presentasi
 
@@ -212,7 +212,7 @@ Memilih platform yang tepat untuk membuat moodboard bisa membingungkan. Berikut 
 | Approval System | Ya | Tidak | Tidak | Tidak |
 | Undo/Redo | Unlimited | Ya | Ya | Tidak |
 | Lead Tracking | Ya | Tidak | Tidak | Tidak |
-| Harga/bulan | Rp 88K | $12.99 | $9.99 | Gratis |
+| Harga | Gratis selama beta publik | $12.99/bulan | $9.99/bulan | Gratis |
 
 ### Kesimpulan
 

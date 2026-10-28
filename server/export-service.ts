@@ -15,6 +15,9 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let running = false;
 let lastCleanup = 0;
 const validId = (id: string) => /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id);
+export class ExportServiceError extends Error {
+  constructor(public status: number, message: string) { super(message); this.name = "ExportServiceError"; }
+}
 
 export async function initializeExportSchema() {
   await pool.query(`
@@ -52,16 +55,17 @@ function jobView(row: any) {
 }
 
 export async function startExport(userId: string, args: ExportArguments) {
-  if (!userId || !Number.isSafeInteger(args.projectId) || args.projectId < 1) throw new Error("A valid owned project is required.");
+  if (!userId || !Number.isSafeInteger(args.projectId) || args.projectId < 1) throw new ExportServiceError(400, "A valid owned project is required.");
   const project = await storage.getProject(args.projectId);
-  if (!project || project.userId !== userId) throw new Error("Moodboard not found.");
+  if (!project || project.userId !== userId) throw new ExportServiceError(404, "Moodboard not found.");
   new ObjectStorageService().getPrivateObjectDir();
-  if (args.paperSize && !["A4", "A3", "A2"].includes(args.paperSize)) throw new Error("Invalid paper size.");
-  if (args.orientation && !["horizontal", "vertical"].includes(args.orientation)) throw new Error("Invalid orientation.");
+  if (args.paperSize && !["A4", "A3", "A2"].includes(args.paperSize)) throw new ExportServiceError(400, "Invalid paper size.");
+  if (args.orientation && !["horizontal", "vertical"].includes(args.orientation)) throw new ExportServiceError(400, "Invalid orientation.");
   const pins = await storage.getPinsByProject(project.id);
-  if (!pins.length || pins.length > 500) throw new Error("Server exports require 1 to 500 references. No partial PDF was created.");
+  if (!pins.length) throw new ExportServiceError(400, "Add at least one reference image before exporting.");
+  if (pins.length > 500) throw new ExportServiceError(413, "Server exports support up to 500 references. Split this board before exporting; no partial PDF was created.");
   const key = args.idempotencyKey || randomUUID();
-  if (typeof key !== "string" || key.length < 1 || key.length > 160) throw new Error("Invalid export idempotency key.");
+  if (typeof key !== "string" || key.length < 1 || key.length > 160) throw new ExportServiceError(400, "Invalid export idempotency key.");
   const inputHash = hash(JSON.stringify({ projectId: project.id, paperSize: args.paperSize, orientation: args.orientation }));
   const client = await pool.connect();
   let row: any;
@@ -71,14 +75,14 @@ export async function startExport(userId: string, args: ExportArguments) {
     const existing = await client.query("SELECT * FROM export_jobs WHERE user_id=$1 AND idempotency_key=$2", [userId, key]);
     if (existing.rows[0]) {
       row = existing.rows[0];
-      if (row.input_hash !== inputHash) throw new Error("This idempotency key was already used for a different export.");
-      if (new Date(row.expires_at).getTime() <= Date.now()) throw new Error("This export expired. Start another export with a new idempotency key.");
+      if (row.input_hash !== inputHash) throw new ExportServiceError(409, "This idempotency key was already used for a different export.");
+      if (new Date(row.expires_at).getTime() <= Date.now()) throw new ExportServiceError(410, "This export expired. Start another export with a new idempotency key.");
     } else {
       const active = await client.query("SELECT count(*)::int AS count FROM export_jobs WHERE user_id=$1 AND status IN ('queued','running') AND expires_at>now()", [userId]);
-      if (active.rows[0].count >= 2) throw new Error("Two export jobs are already active. Wait for one to finish.");
+      if (active.rows[0].count >= 2) throw new ExportServiceError(429, "Two export jobs are already active. Wait for one to finish.");
       const snapshot: ExportSnapshot = { project: { ...project, ...(args.paperSize ? { paperSize: args.paperSize } : {}), ...(args.orientation ? { orientation: args.orientation } : {}) }, pins };
       const serializedSnapshot = JSON.stringify(snapshot);
-      if (Buffer.byteLength(serializedSnapshot) > 5 * 1024 * 1024) throw new Error("Export snapshot exceeds the 5 MB limit. Split the board; no partial PDF was created.");
+      if (Buffer.byteLength(serializedSnapshot) > 5 * 1024 * 1024) throw new ExportServiceError(413, "Export snapshot exceeds the 5 MB limit. Split the board; no partial PDF was created.");
       const filename = `${(project.title || 'moodboard').replace(/[^\p{L}\p{N} _.-]/gu, '').slice(0, 90) || 'moodboard'}.pdf`;
       const inserted = await client.query(`INSERT INTO export_jobs(id,user_id,project_id,idempotency_key,input_hash,snapshot,total,filename)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`, [randomUUID(), userId, project.id, key, inputHash, serializedSnapshot, pins.length, filename]);
@@ -92,10 +96,10 @@ export async function startExport(userId: string, args: ExportArguments) {
 }
 
 export async function getExportJob(userId: string, jobId: string) {
-  if (!validId(jobId)) throw new Error("Export not found.");
+  if (!validId(jobId)) throw new ExportServiceError(404, "Export not found.");
   const { rows } = await pool.query("SELECT j.* FROM export_jobs j JOIN projects p ON p.id=j.project_id WHERE j.id=$1 AND j.user_id=$2 AND p.user_id=$2 AND j.expires_at>now()", [jobId, userId]);
   const row = rows[0];
-  if (!row) throw new Error("Export not found or expired.");
+  if (!row) throw new ExportServiceError(404, "Export not found or expired.");
   if (row.status !== "ready") return jobView(row);
   const token = randomBytes(32).toString("base64url");
   await pool.query("DELETE FROM export_download_tokens WHERE expires_at<=now()");

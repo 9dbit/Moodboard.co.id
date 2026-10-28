@@ -42,7 +42,7 @@ export default function Privacy() {
           <section>
             <h2 className="font-serif text-xl font-semibold mb-3">1. Information We Collect</h2>
             <p className="text-muted-foreground leading-relaxed">
-              When you use Moodboard Studio, we collect information you provide directly to us, including your name, email address, and profile information through our authentication system. We also collect data related to your usage of our platform, including project data, imported images, and interaction patterns to improve our services.
+              We store information you provide to use Moodboard Studio, including your account name and email address, optional profile details, project briefs and layouts, reference images and source links, captions, and uploaded logos. We also store subscription and transaction records when applicable, support messages you submit, and operational records used to run and protect the service.
             </p>
           </section>
 
@@ -53,67 +53,73 @@ export default function Privacy() {
               <li>Provide, maintain, and improve our moodboard creation services</li>
               <li>Process and manage your projects, pins, and exported presentations</li>
               <li>Generate AI-powered descriptions for your images and projects</li>
-              <li>Send you technical notices, updates, and support communications</li>
-              <li>Monitor and analyze trends, usage, and activities on our platform</li>
+              <li>Handle account access, subscriptions, and support requests</li>
+              <li>Diagnose errors, enforce access permissions, and limit abusive requests</li>
             </ul>
           </section>
 
           <section>
             <h2 className="font-serif text-xl font-semibold mb-3">3. Image Storage & Processing</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Images imported from Pinterest, Behance, Dribbble, or other sources are stored on our secure cloud infrastructure. We process images for display optimization and AI description generation. We do not claim ownership of your imported content. You retain all rights to your original creative work and curated selections.
+              Uploaded and imported reference images are stored on cloud infrastructure and processed for display and PDF export. When you request AI image descriptions, relevant images and instructions are sent to the AI provider for that task. We do not claim ownership of imported images; you remain responsible for holding the rights needed to use them.
             </p>
           </section>
 
           <section>
             <h2 className="font-serif text-xl font-semibold mb-3">4. Data Sharing</h2>
             <p className="text-muted-foreground leading-relaxed">
-              We do not sell your personal information. We may share information with third-party service providers who assist in operating our platform, including cloud hosting, AI processing (OpenAI), and analytics services. When you use the share feature, your moodboard becomes accessible via a unique link to anyone who has it.
+              We do not sell your personal information. We use service providers for hosting, database and file storage, AI processing through OpenAI, and account email delivery when configured. Relevant data is processed by these providers to perform the requested service. If you enable a share link on the website, anyone who has that link can view the shared moodboard while the link remains valid. Connecting ChatGPT does not enable public sharing of your boards.
             </p>
           </section>
 
           <section>
             <h2 className="font-serif text-xl font-semibold mb-3">5. Data Security</h2>
             <p className="text-muted-foreground leading-relaxed">
-              We implement industry-standard security measures to protect your data, including encrypted connections (HTTPS), secure authentication, and regular security audits. However, no method of electronic transmission or storage is 100% secure.
+              We use HTTPS, hashed account passwords, and account-based access checks for private boards and reference images. Connection tokens are stored as hashes and checked against the permissions you approved. No method of electronic transmission or storage is completely secure.
             </p>
           </section>
 
           <section>
-            <h2 className="font-serif text-xl font-semibold mb-3">ChatGPT connections and temporary processing</h2>
+            <h2 className="font-serif text-xl font-semibold mb-3">6. ChatGPT Connections</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Connecting an MCP client such as ChatGPT requires signing in on Moodboard and approving the requested permissions. The connected client can receive your selected design brief, board and reference metadata, image content you request it to inspect, and temporary PDF download links. Your Moodboard password is never shared with that client. You can revoke connections from your Profile; resetting your password also invalidates existing connection credentials.
+              Connecting ChatGPT requires signing in on Moodboard Studio and approving access. Depending on the permissions requested, ChatGPT can read the connected account's boards and reference images, create or edit boards and captions, and generate PDF exports. It can receive board briefs and settings, reference titles, captions and source links, image content you request it to inspect, and temporary PDF download links. Other users' private accounts are not included in this authorization. Your Moodboard password is never shared with ChatGPT.
             </p>
             <p className="text-muted-foreground leading-relaxed">
-              Projects and reference images are retained until you delete them or request account deletion. Import previews expire after 30 minutes. Server-generated PDF files expire after 24 hours and are removed by the export worker; individual download links expire after 15 minutes. OAuth access tokens last one hour, refresh tokens up to 30 days, and temporary authorization requests up to 10 minutes. Expired authorization data is cleaned during application maintenance. Support messages are stored for the team to respond to your request; contact us to request their deletion.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="font-serif text-xl font-semibold mb-3">6. Your Rights</h2>
-            <p className="text-muted-foreground leading-relaxed">
-              You have the right to access, update, or delete your personal information at any time. You can delete your projects and associated data through your dashboard. For account deletion requests, please contact us through our Contact page.
+              You can revoke connections from your <Link href="/profile" className="underline">Profile</Link>; resetting your password also invalidates existing connection credentials. Revocation stops future access through that connection. Information already received by ChatGPT or downloaded by a recipient remains subject to that recipient's settings and policies, including OpenAI's policies for ChatGPT.
             </p>
           </section>
 
           <section>
-            <h2 className="font-serif text-xl font-semibold mb-3">7. Cookies & Tracking</h2>
+            <h2 className="font-serif text-xl font-semibold mb-3">7. Retention and Your Choices</h2>
             <p className="text-muted-foreground leading-relaxed">
-              We use essential cookies to maintain your session and preferences (such as dark/light mode). We may use analytics cookies to understand how our platform is used. You can control cookie preferences through your browser settings.
+              Saved boards and references are kept so you can return to them. Deleting a project or reference through the website removes its dashboard record. Stored image files and operational records can remain after that action. For account deletion, stored-file removal, access or correction requests, use our <Link href="/contact" className="underline">Contact page</Link> so we can verify the account and handle your request.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-3">
+              Import previews expire after 30 minutes. Server-generated PDF exports expire 24 hours after the export request and are removed during scheduled cleanup; individual download links expire after 15 minutes. Anyone who receives a valid PDF link can use it until it expires, so share it only with intended recipients. A new link can be requested while its export remains available. Copies you download are under your control.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-3">
+              OAuth access tokens last one hour, refresh tokens up to 30 days, and pending authorization requests up to 10 minutes. Expired authorization records are cleaned during application maintenance. Support messages are retained to handle your request; you may request their removal through the Contact page.
             </p>
           </section>
 
           <section>
-            <h2 className="font-serif text-xl font-semibold mb-3">8. Changes to This Policy</h2>
+            <h2 className="font-serif text-xl font-semibold mb-3">8. Cookies & Browser Storage</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              We use essential cookies to maintain your signed-in session and interface state. Browser storage remembers preferences such as the theme and editor description mode, and referral or promotion codes when you use those links or offers. You can clear cookies and browser storage in your browser settings; doing so may sign you out or reset preferences.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="font-serif text-xl font-semibold mb-3">9. Changes to This Policy</h2>
             <p className="text-muted-foreground leading-relaxed">
               We may update this privacy policy from time to time. We will notify you of any material changes by posting the new policy on this page and updating the "Last updated" date.
             </p>
           </section>
 
           <section>
-            <h2 className="font-serif text-xl font-semibold mb-3">9. Contact Us</h2>
+            <h2 className="font-serif text-xl font-semibold mb-3">10. Contact Us</h2>
             <p className="text-muted-foreground leading-relaxed">
-              If you have questions about this privacy policy, please visit our <Link href="/contact" className="underline" style={{ color: "hsl(24 85% 52%)" }}>Contact page</Link> or email us at support@moodboardstudio.com.
+              Send privacy questions, access requests, or deletion requests through our <Link href="/contact" className="underline" style={{ color: "hsl(24 85% 52%)" }}>Contact page</Link>. The form shows a reference after your message has been saved. Include an email address where we can reply, but do not include passwords or API keys.
             </p>
           </section>
         </div>

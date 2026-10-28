@@ -237,6 +237,7 @@ export function ExportModal({ project, pins, open, onOpenChange, descMode = "aut
   }, [project.id]);
 
   const handleExport = useCallback(async () => {
+    const description = project.descriptionEnabled !== false ? project.descriptionAi || project.descriptionRaw || "" : "";
     const exportPins = pins
       .filter((pin) => !excludedPinIds.includes(pin.id))
       .map((pin) => repairedImages[pin.id]
@@ -446,9 +447,9 @@ export function ExportModal({ project, pins, open, onOpenChange, descMode = "aut
           titleEl.style.textShadow = "0 2px 8px rgba(0,0,0,0.3)";
           midDiv.appendChild(titleEl);
 
-          if (project.descriptionAi) {
+          if (description) {
             const descEl = document.createElement("p");
-            descEl.textContent = project.descriptionAi;
+            descEl.textContent = description;
             descEl.style.color = project.coverDescColor || descColor;
             descEl.style.fontSize = `${coverClamp(5, canvasWidthPx * 0.011, 9)}px`;
             descEl.style.lineHeight = "1.5";
@@ -592,9 +593,9 @@ export function ExportModal({ project, pins, open, onOpenChange, descMode = "aut
           titleEl.style.marginBottom = `${canvasWidthPx * 0.015}px`;
           coverMid.appendChild(titleEl);
 
-          if (project.descriptionAi) {
+          if (description) {
             const descEl = document.createElement("p");
-            descEl.textContent = project.descriptionAi;
+            descEl.textContent = description;
             descEl.style.color = project.coverDescColor || autoDescColor;
             descEl.style.fontSize = `${coverClamp(5, canvasWidthPx * 0.011, 9)}px`;
             descEl.style.lineHeight = "1.5";

@@ -19,6 +19,7 @@ import { fetchPinterest, importDelay, ImportInputError, isPinterestBoardUrl, isP
 import { importJobs, sanitizeImportImages, startImportWorker, type PinterestImage } from "./import-jobs";
 import { pool } from "./db";
 import { applyPaymentNotification, verifyPaymentNotification, PaymentWebhookError } from "./payments";
+import { FREE_PUBLIC_BETA } from "../shared/release-policy";
 const isAuthenticated = requireAuth;
 
 const ADMIN_CREDENTIALS = {
@@ -1841,6 +1842,9 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
   });
 
   app.post("/api/payment/create", isAuthenticated, async (req, res) => {
+    if (FREE_PUBLIC_BETA) {
+      return res.status(503).json({ code: "FREE_PUBLIC_BETA", message: "Moodboard Studio is in free public beta. New paid subscriptions are paused." });
+    }
     try {
       const userId = getUserId(req);
       const user = await storage.getUser(userId);

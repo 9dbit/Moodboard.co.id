@@ -110,3 +110,32 @@ test("a missing or corrupt reference fails the entire export without publishing 
   assert.equal("downloadUrl" in job, false);
   assert.ok(job.error);
 });
+
+test("expected export failures remain actionable without exposing internal storage errors", enabled, async () => {
+  await assert.rejects(service.startExport("B", { projectId: 1 }), { status: 404, message: "Moodboard not found." });
+  await pool.query("INSERT INTO projects(id,user_id,title) VALUES(3,'A','Empty draft')");
+  await assert.rejects(service.startExport("A", { projectId: 3 }), { status: 400, message: "Add at least one reference image before exporting." });
+  await pool.query("INSERT INTO projects(id,user_id,title) VALUES(4,'A','Oversized board')");
+  await pool.query("INSERT INTO pins(id,project_id,title) SELECT 1000+n,4,'Reference' FROM generate_series(1,501) AS n");
+  await assert.rejects(service.startExport("A", { projectId: 4 }), { status: 413, message: "Server exports support up to 500 references. Split this board before exporting; no partial PDF was created." });
+  await assert.rejects(service.getExportJob("A", "not-a-job"), { status: 404, message: "Export not found." });
+  await assert.rejects(service.getExportJob("A", "11111111-1111-4111-8111-111111111111"), { status: 404, message: "Export not found or expired." });
+  const retryFixture = await service.startExport("A", { projectId: 1, idempotencyKey: "public-failure-retry" });
+  await completed(retryFixture.id);
+  await assert.rejects(service.startExport("A", { projectId: 1, paperSize: "A3", idempotencyKey: "public-failure-retry" }), { status: 409 });
+
+  // Insert active jobs directly so no worker timing can race the quota case.
+  await pool.query(`INSERT INTO export_jobs(id,user_id,project_id,idempotency_key,input_hash,snapshot,total,status,lease_until)
+    VALUES('11111111-1111-4111-8111-111111111112','A',1,'active-one','fixture','{}',1,'running',now()+interval '9 minutes'),
+          ('11111111-1111-4111-8111-111111111113','A',1,'active-two','fixture','{}',1,'running',now()+interval '9 minutes')`);
+  await assert.rejects(service.startExport("A", { projectId: 1, idempotencyKey: "third-active" }), { status: 429, message: "Two export jobs are already active. Wait for one to finish." });
+  await pool.query("DELETE FROM export_jobs WHERE idempotency_key IN ('active-one','active-two')");
+  await pool.query("UPDATE export_jobs SET expires_at=now()-interval '1 second' WHERE idempotency_key='public-failure-retry'");
+  await assert.rejects(service.startExport("A", { projectId: 1, idempotencyKey: "public-failure-retry" }), { status: 410, message: "This export expired. Start another export with a new idempotency key." });
+
+  const originalDirectory = process.env.PRIVATE_OBJECT_DIR;
+  try {
+    delete process.env.PRIVATE_OBJECT_DIR;
+    await assert.rejects(service.startExport("A", { projectId: 1 }), (error: any) => !(error instanceof service.ExportServiceError) && error.status === undefined);
+  } finally { process.env.PRIVATE_OBJECT_DIR = originalDirectory; }
+});

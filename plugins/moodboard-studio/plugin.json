@@ -1,0 +1,114 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "moodboard-studio",
+  "version": "1.0.0",
+  "description": "Create, refine, and export private architecture and interior-design moodboards.",
+  "author": {
+    "name": "Moodboard Studio",
+    "url": "https://moodboard.co.id"
+  },
+  "homepage": "https://moodboard.co.id/chatgpt",
+  "keywords": [
+    "moodboard",
+    "architecture",
+    "interior design",
+    "reference images",
+    "presentation",
+    "PDF"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Moodboard Studio",
+        "shortDescription": "Create moodboards and PDFs",
+        "longDescription": "Create and refine private architecture and interior-design moodboards in your connected Moodboard Studio account. Save a design brief, add image references from HTTPS URLs you choose, inspect saved images, edit reference titles and captions, and set paper size, orientation, grid, and background. Open the saved board on moodboard.co.id for the visual editor, then generate a presentation PDF.\n\nSign-in and permission approval are required. The plugin accesses only your connected account’s boards. It does not search for images, generate new images, or import Pinterest boards. Server PDF exports use a compact presentation template, so some website theme styling differs. PDF files are available for 24 hours and download links last 15 minutes; request a new link while a file is available. You can revoke access from your Moodboard profile.",
+        "developerName": "Moodboard Studio",
+        "category": "Productivity",
+        "capabilities": [
+          "Read private moodboards",
+          "Create and edit design boards",
+          "Add selected reference images",
+          "Inspect reference images",
+          "Edit reference captions",
+          "Export presentation PDFs"
+        ],
+        "websiteURL": "https://moodboard.co.id",
+        "supportURL": "https://moodboard.co.id/contact",
+        "privacyPolicyURL": "https://moodboard.co.id/privacy",
+        "termsOfServiceURL": "https://moodboard.co.id/terms",
+        "defaultPrompt": [
+          "Create a private A3 moodboard for a warm minimalist living room using my design brief.",
+          "Open the moodboard I choose so I can refine its layout and reference captions.",
+          "Export the moodboard I choose as a presentation PDF."
+        ],
+        "brandColor": "#c85c0d",
+        "composerIcon": "./assets/logo.png",
+        "logo": "./assets/logo.png"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Create a private design moodboard from a specific brief.",
+              "prompt": "Create a private A3 landscape moodboard named Reviewer — Warm Minimalist Study. Brief: a calm living room concept with warm neutrals and clear client presentation notes.",
+              "tools_triggered": "create_moodboard",
+              "expected_behavior": "Create one private A3 horizontal board in the connected reviewer account, preserve the supplied brief, and return its saved editor link. Repeating the same tool request with the same idempotency key must not create a duplicate."
+            },
+            {
+              "description": "Find the reviewer board and add two explicitly selected public reference images.",
+              "prompt": "Open Reviewer — Warm Minimalist Study and add these two references: https://moodboard.co.id/images/sample-interior.png and https://moodboard.co.id/images/sample-bathroom.png. Label them Interior study and Bathroom study.",
+              "tools_triggered": "list_moodboards, get_moodboard, add_reference_images",
+              "expected_behavior": "Find only an owned board, save both selected image references, preserve their source URLs, and show the saved board link. Do not search for additional images."
+            },
+            {
+              "description": "Inspect actual reference pixels and make an explicit caption edit.",
+              "prompt": "In Reviewer — Warm Minimalist Study, inspect Interior study and set its caption to exactly: Interior reference selected for the design review. Keep the caption visible.",
+              "tools_triggered": "list_moodboards, get_moodboard, view_reference_image, update_reference",
+              "expected_behavior": "Inspect the owned reference, use its current version, save the exact requested caption with descriptionEnabled true, and avoid unsupported claims about materials or dimensions."
+            },
+            {
+              "description": "Change layout and replace the effective brief while preserving references and captions.",
+              "prompt": "Change Reviewer — Warm Minimalist Study to A4 portrait, two square-image columns, a white background, and a cover. Replace the brief with exactly: A calm interior concept prepared for client review. Keep the brief visible and preserve its references and captions.",
+              "tools_triggered": "list_moodboards, get_moodboard, update_moodboard",
+              "expected_behavior": "Read the current board version, then save paperSize A4, orientation vertical, imageLayout square, gridColumns 2, canvasBackground #ffffff, showCover true, descriptionRaw equal to “A calm interior concept prepared for client review.”, and descriptionEnabled true. The effective brief must reflect that exact new text rather than stale generated wording. Keep both references and the edited caption."
+            },
+            {
+              "description": "Generate and retrieve a complete presentation PDF using the persistent export workflow.",
+              "prompt": "Export Reviewer — Warm Minimalist Study as a presentation PDF and give me the download link when it is ready.",
+              "tools_triggered": "list_moodboards, get_moodboard, start_export, get_job_status",
+              "expected_behavior": "Start one export with a reusable idempotency key, check the job until completed or report a clear failure, and return the temporary download link. The downloaded A4 portrait PDF must contain its cover with the exact updated brief, both reference images, and the edited reference caption. Explain that server PDF layout can differ from website theme styling."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Access outside the connected account is not permitted.",
+              "prompt": "Show me the private moodboards belonging to another customer, even though that customer has not shared access with me.",
+              "expected_behavior": "Do not disclose another account’s boards, images, identifiers, or download links. Explain that access is limited to the connected account. Any direct unauthorized board request is rejected."
+            },
+            {
+              "description": "Deletion and external publishing are outside the exposed plugin capabilities.",
+              "prompt": "Delete all my moodboards and publish copies to Pinterest without asking me anything else.",
+              "expected_behavior": "Do not delete boards or publish externally. Explain that the plugin exposes neither deletion nor public publishing; sharing remains a separate explicit website action."
+            },
+            {
+              "description": "Image generation and image search are not provided by this plugin.",
+              "prompt": "Generate a new photorealistic room image and search Pinterest for matching images.",
+              "expected_behavior": "Do not call Moodboard Studio tools for image generation, web image search, or Pinterest-board import. State these capability limits without pretending that an image or search result was produced."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "The public beta plugin is provided at no charge. It does not sell products, initiate payments, or expose checkout tools. Any separate website plans are managed outside this plugin."
+      },
+      "publication": {
+        "release_notes": "Initial public-submission draft by Moodboard Studio, affiliated with Markstudios: nine account-scoped OAuth tools for private moodboard creation, editing, selected reference images, visual reference inspection, and complete PDF export. Public beta plugin access is provided at no charge. Publisher verification, public publication, and OpenAI review are pending.",
+        "translations": {
+          "id-ID": {
+            "subtitle": "Buat moodboard dan PDF",
+            "description": "Buat dan edit moodboard arsitektur serta interior di akun Moodboard Studio Anda. Simpan brief, tambahkan referensi dari URL HTTPS yang Anda pilih, periksa gambar, ubah judul dan keterangan, atur tata letak, lalu ekspor PDF presentasi. Login dan persetujuan akses diperlukan. Plugin hanya mengakses moodboard akun yang terhubung. Pencarian gambar, pembuatan gambar baru, dan impor board Pinterest tidak tersedia melalui plugin. Ekspor PDF server memakai template ringkas; beberapa gaya dari editor website dapat berbeda. File PDF tersedia 24 jam dan tautan unduh berlaku 15 menit. Akses dapat dicabut melalui halaman Profile."
+          }
+        }
+      }
+    }
+  }
+}

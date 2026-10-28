@@ -34,35 +34,35 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
 const faqData = [
   {
     question: "What is Moodboard Studio?",
-    answer: "Moodboard Studio is a professional web-based moodboard builder designed specifically for architecture and interior design studios. It helps you transform Pinterest boards and other design inspirations into client-ready presentations with AI-powered descriptions, multi-layout canvases, and PDF export.",
+    answer: "Moodboard Studio helps architecture and interior design studios organize selected references into saved moodboards, edit layouts and captions, and export PDF presentations. You can work in the website editor or connect your account to the Moodboard Studio ChatGPT plugin.",
   },
   {
-    question: "How do I import images from Pinterest?",
-    answer: "Simply paste your Pinterest board URL into the import dialog in the editor. Our system automatically scrapes the board, filters out profile pictures and irrelevant images, and imports high-resolution pins directly into your moodboard canvas. You can also import from Behance, Dribbble, and other portfolio websites.",
+    question: "How do I add reference images?",
+    answer: "Upload your reference images in the website editor or provide selected direct HTTPS image URLs. The website also offers a Pinterest import flow for supported public boards; availability depends on the source website. The ChatGPT plugin adds selected image URLs and does not search Pinterest or import whole Pinterest boards. Use images you have permission to use.",
   },
   {
     question: "What layout options are available?",
-    answer: "We offer four main layout modes: Square (uniform grid), Vertical/Portrait (3:4 ratio), Landscape/Wide (4:3 ratio), and Original/Masonry (preserves natural image proportions with dynamic heights). You can also choose between 1-6 columns and customize spacing, paper size (A4, A3, A2), and orientation (portrait or landscape).",
+    answer: "Choose original proportions, square, portrait, tall, landscape, or wide image layouts, with 2–5 columns. Boards support A4, A3, and A2 paper sizes and portrait or landscape orientation. The website editor offers additional presentation controls; the server PDF uses a compact template.",
   },
   {
     question: "How does the AI description feature work?",
-    answer: "Our AI uses OpenAI's GPT-4o-mini model to analyze your images and generate professional design descriptions. You can generate descriptions for individual images, all images at once, or create concept descriptions for entire pages using keywords. The AI understands architectural and interior design terminology.",
+    answer: "When you request AI descriptions on the website, relevant images and instructions are sent to OpenAI to suggest design text. Review and edit the results before using them professionally. In ChatGPT, you can ask to inspect an existing reference and save a caption based on visible details.",
   },
   {
     question: "Can I export my moodboard as a PDF?",
-    answer: "Yes! You can export high-quality PDFs in A4, A3, or A2 paper sizes. The PDF includes your cover page with studio logo, all moodboard pages with images and descriptions, client information, and signature areas. The export exactly matches what you see on the canvas.",
+    answer: "Yes. The website editor offers browser PDF export for its presentation styling. ChatGPT can generate a complete PDF using a compact server template, which can differ from the website theme. Server exports require 1–500 available references and respect file-size limits. Temporary exports expire 24 hours after the request, and each download link lasts 15 minutes. Read the ChatGPT guide for details.",
   },
   {
     question: "How does the sharing feature work?",
     answer: "Each project can generate a unique share link that displays your moodboard exactly as it appears on canvas. You can send this link via WhatsApp, email, or copy it directly. Recipients don't need an account to view the shared moodboard.",
   },
   {
-    question: "What is the Free Trial?",
-    answer: "The free trial gives you 7 days of full access to all features with a limit of 3 projects. Exported PDFs will have a light watermark during the trial period. No credit card is required to start.",
+    question: "Is Moodboard Studio free during the public beta?",
+    answer: "Yes. Moodboard Studio is free during the public beta and new paid purchases are paused. No credit card is required for the beta. Operational limits still apply, including reference-image and PDF export limits. ChatGPT access is separate and depends on your OpenAI account and plan. Any future Moodboard pricing will be announced before you choose a paid offering.",
   },
   {
     question: "Can I use my own studio logo?",
-    answer: "Absolutely! You can upload your studio logo in the project settings. The logo appears on the cover page, canvas header, and PDF exports, giving your presentations a professional, branded look.",
+    answer: "You can upload a studio logo and configure branding in the website editor. Website and browser-export styling can differ from the compact ChatGPT server PDF template; check the output before sharing it.",
   },
   {
     question: "What fonts are available?",
@@ -74,7 +74,7 @@ const faqData = [
   },
   {
     question: "Can I undo changes in the editor?",
-    answer: "Yes! We support unlimited undo/redo. Use Ctrl+Z to undo and Ctrl+Shift+Z or Ctrl+Y to redo. Every action including drag-and-drop reordering, image additions, deletions, and description changes can be undone.",
+    answer: "The website editor keeps an undo/redo history for supported editing actions. Use Ctrl+Z to undo and Ctrl+Shift+Z or Ctrl+Y to redo while working in the editor. ChatGPT changes are saved to your account; ask for the specific correction you want rather than relying on browser undo for those changes.",
   },
   {
     question: "Does Moodboard Studio support dark mode?",

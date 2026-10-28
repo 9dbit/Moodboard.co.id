@@ -36,13 +36,13 @@ export default function Terms() {
         </Link>
 
         <h1 className="font-serif text-3xl font-bold mb-2" data-testid="text-page-title">Terms of Service</h1>
-        <p className="text-sm text-muted-foreground mb-8">Last updated: February 8, 2026</p>
+        <p className="text-sm text-muted-foreground mb-8">Last updated: October 28, 2026</p>
 
         <div className="prose prose-sm dark:prose-invert max-w-none space-y-6">
           <section>
             <h2 className="font-serif text-xl font-semibold mb-3">1. Acceptance of Terms</h2>
             <p className="text-muted-foreground leading-relaxed">
-              By accessing or using Moodboard Studio, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our platform. These terms apply to all users, including visitors, registered users, and subscribers.
+              Moodboard Studio is provided by Markstudios. By accessing or using Moodboard Studio, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our platform. These terms apply to all users, including visitors and registered users.
             </p>
           </section>
 
@@ -51,6 +51,9 @@ export default function Terms() {
             <p className="text-muted-foreground leading-relaxed">
               Moodboard Studio is a web-based platform that enables architecture and interior design professionals to create, edit, and export moodboard presentations. Our services include image import from external sources, AI-powered description generation, multi-layout canvas editing, PDF export, and share link generation.
             </p>
+            <p className="text-muted-foreground leading-relaxed mt-3">
+              The Moodboard Studio ChatGPT integration lets you work with your own saved moodboards, selected reference images, layouts, captions, and PDF exports. Its server-generated PDFs use a presentation template and may differ from the website editor's styling. Exports require available reference images and are subject to the limits described in the <Link href="/chatgpt" className="underline">ChatGPT guide</Link>. Review presentations before sharing them with clients.
+            </p>
           </section>
 
           <section>
@@ -58,19 +61,28 @@ export default function Terms() {
             <p className="text-muted-foreground leading-relaxed">
               You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You must notify us immediately of any unauthorized use of your account. We reserve the right to suspend or terminate accounts that violate these terms.
             </p>
+            <p className="text-muted-foreground leading-relaxed mt-3">
+              To connect ChatGPT, sign in on Moodboard Studio and approve the requested access to read your boards and references, create or edit boards, or generate PDF exports. The connection acts within the signed-in Moodboard account. You can revoke it from your Profile. Do not send passwords or API keys through a chat or support message.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-3">
+              Moodboard Studio is an independent service. Your use of ChatGPT is also subject to OpenAI's applicable terms and account permissions.
+            </p>
           </section>
 
           <section>
-            <h2 className="font-serif text-xl font-semibold mb-3">4. Subscription Plans & Payments</h2>
+            <h2 className="font-serif text-xl font-semibold mb-3">4. Free Public Beta</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Moodboard Studio offers a free trial period and paid subscription plans. Free trial users are limited to 3 projects with a light watermark on exports. Paid plans (Studio Lite and Studio Pro) offer expanded project limits and additional features. Subscription fees are billed monthly and are non-refundable unless otherwise required by law.
+              Moodboard Studio is available without a Moodboard subscription charge during the public beta. New paid purchases are paused. Existing account, project, subscription, and transaction records are retained. The beta remains subject to operational limits, including image and PDF export limits described in our ChatGPT guide.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-3">
+              We may change the beta offering or introduce future pricing. Any new paid offering will be announced with its terms before you choose to purchase it; beta use alone does not authorize a future charge. Access to ChatGPT and its plugins depends on your OpenAI account, plan, region, and workspace permissions and is separate from the Moodboard Studio beta.
             </p>
           </section>
 
           <section>
             <h2 className="font-serif text-xl font-semibold mb-3">5. Intellectual Property</h2>
             <p className="text-muted-foreground leading-relaxed">
-              You retain ownership of all content you create or import into Moodboard Studio, including moodboards, project configurations, and uploaded logos. The Moodboard Studio platform, including its design, code, features, and branding, is our intellectual property and is protected by applicable laws.
+              You retain the rights you already hold in your original content, project configurations, and uploaded logos. Importing third-party images does not transfer their ownership to you or to Moodboard Studio. The Moodboard Studio platform, including its design, code, features, and branding, is our intellectual property and is protected by applicable laws.
             </p>
           </section>
 
@@ -95,9 +107,12 @@ export default function Terms() {
               <li>Use the service for any illegal or unauthorized purpose</li>
               <li>Attempt to reverse-engineer, decompile, or hack any part of the platform</li>
               <li>Upload or import content that infringes on others' intellectual property rights</li>
-              <li>Use automated scripts or bots to access the service beyond normal usage</li>
+              <li>Use automation to bypass access controls or service limits, access other users' private data, or interfere with the service</li>
               <li>Resell or redistribute the service without written permission</li>
             </ul>
+            <p className="text-muted-foreground leading-relaxed mt-3">
+              Authorized use through the official Moodboard Studio ChatGPT integration is permitted under these terms and the permissions you approve.
+            </p>
           </section>
 
           <section>
@@ -117,14 +132,14 @@ export default function Terms() {
           <section>
             <h2 className="font-serif text-xl font-semibold mb-3">11. Changes to Terms</h2>
             <p className="text-muted-foreground leading-relaxed">
-              We may modify these terms at any time. Material changes will be communicated via email or platform notification. Continued use after changes constitutes acceptance of the updated terms.
+              We may modify these terms from time to time. Updated terms will be posted on this page with a revised "Last updated" date. Continued use after changes constitutes acceptance of the updated terms.
             </p>
           </section>
 
           <section>
             <h2 className="font-serif text-xl font-semibold mb-3">12. Contact</h2>
             <p className="text-muted-foreground leading-relaxed">
-              For questions about these terms, please visit our <Link href="/contact" className="underline" style={{ color: "hsl(24 85% 52%)" }}>Contact page</Link> or email us at support@moodboardstudio.com.
+              For questions about these terms or your use of the ChatGPT integration, please use our <Link href="/contact" className="underline" style={{ color: "hsl(24 85% 52%)" }}>Contact page</Link>. Keep the message reference shown after your request is received.
             </p>
           </section>
         </div>

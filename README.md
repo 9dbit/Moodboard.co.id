@@ -63,3 +63,18 @@ Fitur AI memakai `OPENAI_API_KEY` langsung. Email pemulihan password bersifat op
 Jangan commit kredensial, file `.env`, ekspor database, arsip migrasi, atau unggahan pengguna. Simpan data pada database/bucket privat dan atur rahasia melalui Variables Railway. Repositori berisi kode serta aset tampilan aplikasi.
 
 Sebelum mengalihkan domain, verifikasi jumlah baris database, kelengkapan objek, login, upload, ekspor PDF, dan fitur AI/email yang telah dikonfigurasi. Perubahan DNS dilakukan terpisah dari deployment aplikasi.
+
+## Public beta and directory submission
+
+The website and current Moodboard tools are in a free public beta. `shared/release-policy.ts` controls this release policy. New paid checkout creation returns `FREE_PUBLIC_BETA` before any transaction or gateway request; existing transaction history, prior-payment notifications, and all user/project records remain available.
+
+Public distribution source is in `plugins/moodboard-studio/`; reviewer instructions stay separately in `plugins/moodboard-studio-review.md`. The public publisher is Moodboard Studio, affiliated with Markstudios; the portal must verify the actual business identity. Preparing or installing the personal plugin does not publish a directory listing.
+
+```sh
+node script/validate-moodboard-plugin.mjs
+node script/package-moodboard-plugin.mjs /tmp/moodboard-studio-public.zip
+# Require final review fields, including a real accessible walkthrough URL:
+node script/validate-moodboard-plugin.mjs --submission
+```
+
+Keep reviewer passwords and access instructions out of the ZIP and repository. Provide dedicated sample-account access through the secure OpenAI review form. Before submission, run the five positive and three negative cases, confirm the video URL, complete publisher/domain verification, and resolve portal findings. Directory review and publication remain separate actions.
