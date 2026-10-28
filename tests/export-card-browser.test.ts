@@ -1,23 +1,25 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { build } from "esbuild";
+import { chromium as playwrightChromium } from "playwright-core";
 
-const chromium = process.env.CHROMIUM_PATH || "/repl/tools/bin/chromium";
+const chromium = process.env.CHROMIUM_PATH || ["/usr/bin/chromium", "/usr/bin/google-chrome", "/repl/tools/bin/chromium"].find(existsSync) || "";
 
-test("Chromium renders white rounded export cards with one smooth shadow", async (t) => {
+test("Chromium renders white rounded export cards with one smooth shadow", { timeout: 45000 }, async (t) => {
   if (!existsSync(chromium)) {
+    assert.ok(!process.env.CI, "CI must provide CHROMIUM_PATH; the browser regression cannot be skipped");
     t.skip(`Chromium not found at ${chromium}`);
     return;
   }
 
   const workDir = mkdtempSync(join(tmpdir(), "moodboard-export-card-"));
   const entryPath = join(workDir, "entry.js");
-  const htmlPath = join(workDir, "harness.html");
   const screenshotPath = join(tmpdir(), "moodboard-export-card-regression.png");
+  let fixtureServer: Server | undefined;
 
   try {
     const entrySource = `
@@ -185,29 +187,35 @@ test("Chromium renders white rounded export cards with one smooth shadow", async
     });
 
     const html2canvasPath = resolve("node_modules/html2canvas/dist/html2canvas.min.js");
-    writeFileSync(
-      htmlPath,
-      `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:#d0b6a4}</style></head><body><script src="file://${html2canvasPath}"></script><script src="file://${entryPath}"></script></body></html>`,
-    );
-    const dom = execFileSync(
-      chromium,
-      [
-        "--headless",
-        "--no-sandbox",
-        "--disable-gpu",
-        "--allow-file-access-from-files",
-        "--hide-scrollbars",
-        "--window-size=760,620",
-        "--virtual-time-budget=8000",
-        `--screenshot=${screenshotPath}`,
-        "--dump-dom",
-        `file://${htmlPath}`,
-      ],
-      { encoding: "utf8", maxBuffer: 4 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] },
-    );
-    const metricsText = dom.match(/<pre id="metrics"[^>]*>(.*?)<\/pre>/s)?.[1];
-    assert.ok(metricsText, "browser harness did not emit pixel metrics");
-    const metrics = JSON.parse(metricsText);
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:#d0b6a4}</style></head><body><script src="/html2canvas.js"></script><script src="/entry.js"></script></body></html>`;
+    // Serve only the three fixture resources. Managed browsers may disallow file:
+    // URLs, and localhost also matches the application's normal rendering model.
+    fixtureServer = createServer((req, res) => {
+      if (req.url === "/") { res.setHeader("Content-Type", "text/html"); res.end(html); }
+      else if (req.url === "/html2canvas.js") { res.setHeader("Content-Type", "application/javascript"); res.end(readFileSync(html2canvasPath)); }
+      else if (req.url === "/entry.js") { res.setHeader("Content-Type", "application/javascript"); res.end(readFileSync(entryPath)); }
+      else { res.statusCode = 404; res.end(); }
+    });
+    await new Promise<void>(resolve => fixtureServer!.listen(0, "127.0.0.1", resolve));
+    const fixtureOrigin = `http://127.0.0.1:${(fixtureServer.address() as { port: number }).port}`;
+    const browser = await playwrightChromium.launch({
+      executablePath: chromium,
+      headless: true,
+      timeout: 15000,
+      args: ["--no-sandbox", "--disable-dev-shm-usage", "--hide-scrollbars"],
+    });
+    let metrics: any;
+    try {
+      const page = await browser.newPage({ viewport: { width: 760, height: 620 }, deviceScaleFactor: 1 });
+      // This is a completely local fixture; block accidental Internet requests.
+      await page.route(/^https?:\/\//, route => route.request().url().startsWith(fixtureOrigin + "/") ? route.continue() : route.abort());
+      await page.goto(fixtureOrigin, { waitUntil: "load", timeout: 15000 });
+      await page.waitForSelector("#metrics", { state: "attached", timeout: 20000 });
+      metrics = JSON.parse(await page.locator("#metrics").textContent() || "{}");
+      await page.screenshot({ path: screenshotPath });
+    } finally {
+      await browser.close();
+    }
 
     assert.deepEqual(metrics.size, [760, 620]);
     assert.equal(metrics.captionIsWhite, true, `caption pixel was ${metrics.captionPixel}`);
@@ -226,6 +234,10 @@ test("Chromium renders white rounded export cards with one smooth shadow", async
     console.log(`Chromium export-card screenshot: ${screenshotPath}`);
     console.log(`Chromium export-card pixels: ${JSON.stringify(metrics)}`);
   } finally {
+    if (fixtureServer) {
+      fixtureServer.closeAllConnections();
+      await new Promise<void>(resolve => fixtureServer!.close(() => resolve()));
+    }
     rmSync(workDir, { recursive: true, force: true });
   }
 });

@@ -56,7 +56,7 @@ export async function initializeAuthSchema(): Promise<void> {
   });
 }
 
-async function consumeLimit(key: string, maximum: number, windowMs: number): Promise<boolean> {
+export async function consumeLimit(key: string, maximum: number, windowMs: number): Promise<boolean> {
   const { rows } = await pool.query(`
     INSERT INTO auth_rate_limits(bucket,attempts,resets_at) VALUES($1,1,now()+$2::double precision*interval '1 millisecond')
     ON CONFLICT(bucket) DO UPDATE SET

@@ -36,7 +36,7 @@ export default function Privacy() {
         </Link>
 
         <h1 className="font-serif text-3xl font-bold mb-2" data-testid="text-page-title">Privacy Policy</h1>
-        <p className="text-sm text-muted-foreground mb-8">Last updated: February 8, 2026</p>
+        <p className="text-sm text-muted-foreground mb-8">Last updated: October 28, 2026</p>
 
         <div className="prose prose-sm dark:prose-invert max-w-none space-y-6">
           <section>
@@ -76,6 +76,16 @@ export default function Privacy() {
             <h2 className="font-serif text-xl font-semibold mb-3">5. Data Security</h2>
             <p className="text-muted-foreground leading-relaxed">
               We implement industry-standard security measures to protect your data, including encrypted connections (HTTPS), secure authentication, and regular security audits. However, no method of electronic transmission or storage is 100% secure.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="font-serif text-xl font-semibold mb-3">ChatGPT connections and temporary processing</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              Connecting an MCP client such as ChatGPT requires signing in on Moodboard and approving the requested permissions. The connected client can receive your selected design brief, board and reference metadata, image content you request it to inspect, and temporary PDF download links. Your Moodboard password is never shared with that client. You can revoke connections from your Profile; resetting your password also invalidates existing connection credentials.
+            </p>
+            <p className="text-muted-foreground leading-relaxed">
+              Projects and reference images are retained until you delete them or request account deletion. Import previews expire after 30 minutes. Server-generated PDF files expire after 24 hours and are removed by the export worker; individual download links expire after 15 minutes. OAuth access tokens last one hour, refresh tokens up to 30 days, and temporary authorization requests up to 10 minutes. Expired authorization data is cleaned during application maintenance. Support messages are stored for the team to respond to your request; contact us to request their deletion.
             </p>
           </section>
 

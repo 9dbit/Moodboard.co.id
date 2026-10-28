@@ -1,5 +1,6 @@
+import { getGridLayout, paginateMoodboard } from "@shared/layout-pagination";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useIsMutating } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -233,28 +234,6 @@ function getPaperStyle(paperSize: string, orientation: string) {
   return { aspectRatio: `${w} / ${h}`, w, h };
 }
 
-function getGridLayout(isLandscape: boolean, imageLayout: string, gridColumns: number = 3, paperSize: string = "A3") {
-  const cols = Math.max(2, Math.min(5, gridColumns));
-  const imageAspect = IMAGE_ASPECT_RATIOS[imageLayout];
-  const base = PAPER_RATIOS[paperSize] || PAPER_RATIOS.A3;
-  const paperW = isLandscape ? base.h : base.w;
-  const paperH = isLandscape ? base.w : base.h;
-  if (imageAspect === null) {
-    const contentH = paperH * 0.82;
-    const colW = (paperW * 0.76) / cols;
-    const estRowH = colW * 1.0;
-    const gapEst = 0.015 * paperW;
-    const rows = Math.max(2, Math.floor((contentH + gapEst) / (estRowH + gapEst)));
-    return { cols, rows, perPage: cols * rows, useGrid: false };
-  }
-  const contentW = paperW * 0.76;
-  const contentH = paperH * 0.82;
-  const gapFraction = 0.015 * paperW;
-  const cellW = (contentW - gapFraction * (cols - 1)) / cols;
-  const cellH = cellW / imageAspect;
-  const rows = Math.max(2, Math.floor((contentH + gapFraction) / (cellH + gapFraction)));
-  return { cols, rows, perPage: cols * rows, useGrid: true };
-}
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const pages: T[][] = [];
@@ -1378,43 +1357,8 @@ function CanvasPages({
   const paper = getPaperStyle(paperSize, orientation);
   const layout = getGridLayout(isLandscape, imageLayout, gridColumns, paperSize);
   const sortedPins = [...pins].sort((a, b) => (a.position || 0) - (b.position || 0));
-  const pages: Pin[][] = [];
-  if (layout.useGrid) {
-    const totalSlots = layout.perPage;
-    let currentPagePins: Pin[] = [];
-    let slotsUsed = 0;
-    let colPos = 0;
-    for (const pin of sortedPins) {
-      const isLong = isDescLong(pin, descMode);
-      let needsPad = isLong && colPos === layout.cols - 1;
-      let slotsNeeded = (needsPad ? 1 : 0) + 1 + (isLong ? 1 : 0);
-      if (slotsUsed + slotsNeeded > totalSlots && currentPagePins.length > 0) {
-        pages.push(currentPagePins);
-        currentPagePins = [];
-        slotsUsed = 0;
-        colPos = 0;
-        // Recompute after page break since colPos was reset
-        needsPad = isLong && colPos === layout.cols - 1;
-        slotsNeeded = (needsPad ? 1 : 0) + 1 + (isLong ? 1 : 0);
-      }
-      if (needsPad) colPos = 0;
-      colPos = (colPos + 1) % layout.cols;
-      if (isLong) colPos = (colPos + 1) % layout.cols;
-      currentPagePins.push(pin);
-      slotsUsed += slotsNeeded;
-    }
-    if (currentPagePins.length > 0) pages.push(currentPagePins);
-  } else {
-    const MAX_PAGES = 30;
-    const chunked = chunkArray(sortedPins, layout.perPage);
-    if (chunked.length > MAX_PAGES) {
-      const adjustedPerPage = Math.ceil(sortedPins.length / MAX_PAGES);
-      pages.push(...chunkArray(sortedPins, adjustedPerPage));
-    } else {
-      pages.push(...chunked);
-    }
-  }
-  const totalPages = Math.max(1, Math.min(30, pages.length));
+  const pages = paginateMoodboard(sortedPins, layout, pin => isDescLong(pin, descMode));
+  const totalPages = Math.max(1, pages.length);
   const pageDescriptions = (project.pageDescriptions as Array<{ title: string; description: string }>) || [];
 
   const hasCover = project.showCover !== false;
@@ -1803,6 +1747,24 @@ export default function Editor() {
     signatureField: "",
   });
   const [settingsForm, setSettingsForm] = useState(settingsFormRef.current);
+  const [failedProjectChanges, setFailedProjectChanges] = useState<Partial<Project>>({});
+  const [failedPinChanges, setFailedPinChanges] = useState<Record<number, Partial<Pin>>>({});
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const activeSaveProjectRef = useRef(projectId);
+  activeSaveProjectRef.current = projectId;
+  const pendingProjectSaves = useIsMutating({ mutationKey: ["editor-project-save", projectId] });
+  const pendingPinSaves = useIsMutating({ mutationKey: ["editor-pin-save", projectId] });
+  const isSavingEdits = pendingProjectSaves + pendingPinSaves > 0;
+  const hasFailedEdits = Object.keys(failedProjectChanges).length > 0 || Object.keys(failedPinChanges).length > 0;
+  useEffect(() => {
+    setFailedProjectChanges({}); setFailedPinChanges({}); setSavedAt(null);
+  }, [projectId]);
+  useEffect(() => {
+    if (!isSavingEdits && !hasFailedEdits) return;
+    const protectUnsaved = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", protectUnsaved);
+    return () => window.removeEventListener("beforeunload", protectUnsaved);
+  }, [isSavingEdits, hasFailedEdits]);
   const isEditingRef = useRef(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [columnSuggestion, setColumnSuggestion] = useState<{ currentCols: number; suggestedCols: number } | null>(null);
@@ -1821,6 +1783,7 @@ export default function Editor() {
   const [importFields, setImportFields] = useState<Array<{ url: string; name: string }>>([
     { url: "", name: "" },
   ]);
+  const directImportAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const [uploadTargetPage, setUploadTargetPage] = useState<number>(-1);
   const [importTargetPage, setImportTargetPage] = useState<number>(-1);
   const [brokenPinIds, setBrokenPinIds] = useState<Set<number>>(new Set());
@@ -2022,12 +1985,24 @@ export default function Editor() {
   }, [canUndo, canRedo, handleUndo, handleRedo, restorePins.isPending]);
 
   const updateProject = useMutation({
+    mutationKey: ["editor-project-save", projectId],
+    scope: { id: `editor-project-save-${projectId}` },
     mutationFn: async (data: Partial<Project>) => {
       const res = await apiRequest("PATCH", `/api/projects/${projectId}`, data);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_result, data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      if (activeSaveProjectRef.current !== projectId) return;
+      setFailedProjectChanges(previous => {
+        const remaining = { ...previous };
+        for (const key of Object.keys(data)) delete remaining[key as keyof Project];
+        return remaining;
+      });
+      setSavedAt(new Date());
+    },
+    onError: (_error, data) => {
+      if (activeSaveProjectRef.current === projectId) setFailedProjectChanges(previous => ({ ...previous, ...data }));
     },
   });
 
@@ -2132,6 +2107,7 @@ export default function Editor() {
   const startPolling = useCallback((progressKey: string) => {
     stopPolling();
     setScrapeElapsed(0);
+    let consecutiveFailures = 0;
     scrapeTimerRef.current = setInterval(() => {
       setScrapeElapsed((prev) => prev + 1);
     }, 1000);
@@ -2139,6 +2115,7 @@ export default function Editor() {
       try {
         const res = await apiRequest("GET", `/api/scrape-progress/${progressKey}`);
         const data = await res.json();
+        consecutiveFailures = 0;
 
         setScrapeCount(data.imageCount || 0);
         setScrapeStatus(data.message || "");
@@ -2165,7 +2142,14 @@ export default function Editor() {
           setIsScraping(false);
           setScrapeError(data.error || "Failed to scan board. Please try again.");
         }
-      } catch (_e) {}
+      } catch (_e) {
+        consecutiveFailures++;
+        if (consecutiveFailures >= 3) {
+          stopPolling();
+          setIsScraping(false);
+          setScrapeError("We could not retrieve import progress. Please try again; the scan may still be running.");
+        }
+      }
     }, 1500);
   }, [stopPolling, toast]);
 
@@ -2231,18 +2215,23 @@ export default function Editor() {
         if (f.url && f.name) acc[f.url] = f.name;
         return acc;
       }, {});
-      const res = await apiRequest("POST", `/api/projects/${projectId}/import`, { urls, names });
+      const fingerprint = JSON.stringify({ projectId, urls, names });
+      if (directImportAttemptRef.current?.fingerprint !== fingerprint) directImportAttemptRef.current = { fingerprint, key: crypto.randomUUID() };
+      const res = await apiRequest("POST", `/api/projects/${projectId}/import`, { urls, names }, { "Idempotency-Key": directImportAttemptRef.current.key });
       return res.json();
     },
     onSuccess: (data: { imported: number; total: number; errors: string[] }) => {
+      directImportAttemptRef.current = null;
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "pins"] });
-      setShowImport(false);
-      setImportFields([{ url: "", name: "" }]);
       if (data.errors?.length > 0 && data.imported === 0) {
         toast({ title: "Import failed", description: data.errors[0], variant: "destructive" });
       } else if (data.errors?.length > 0) {
+        setShowImport(false);
+        setImportFields([{ url: "", name: "" }]);
         toast({ title: `${data.imported} of ${data.total} images imported`, description: data.errors[0] });
       } else {
+        setShowImport(false);
+        setImportFields([{ url: "", name: "" }]);
         toast({ title: `${data.imported} image(s) imported successfully` });
       }
     },
@@ -2251,39 +2240,8 @@ export default function Editor() {
     },
   });
 
-  const computeSlotAwarePages = useCallback((pinsList: Pin[], layout: ReturnType<typeof getGridLayout>, dm: DescMode = "auto") => {
-    const pagesList: Pin[][] = [];
-    if (layout.useGrid) {
-      let curPage: Pin[] = [];
-      let slotsUsed = 0;
-      let colPos = 0;
-      for (const p of pinsList) {
-        const isLong = isDescLong(p, dm);
-        let needsPad = isLong && colPos === layout.cols - 1;
-        let needed = (needsPad ? 1 : 0) + 1 + (isLong ? 1 : 0);
-        if (slotsUsed + needed > layout.perPage && curPage.length > 0) {
-          pagesList.push(curPage);
-          curPage = [];
-          slotsUsed = 0;
-          colPos = 0;
-          // Recompute after page break since colPos was reset
-          needsPad = isLong && colPos === layout.cols - 1;
-          needed = (needsPad ? 1 : 0) + 1 + (isLong ? 1 : 0);
-        }
-        if (needsPad) colPos = 0;
-        colPos = (colPos + 1) % layout.cols;
-        if (isLong) colPos = (colPos + 1) % layout.cols;
-        curPage.push(p);
-        slotsUsed += needed;
-      }
-      if (curPage.length > 0) pagesList.push(curPage);
-    } else {
-      for (let i = 0; i < pinsList.length; i += layout.perPage) {
-        pagesList.push(pinsList.slice(i, i + layout.perPage));
-      }
-    }
-    return pagesList;
-  }, []);
+  const computeSlotAwarePages = useCallback((pinsList: Pin[], layout: ReturnType<typeof getGridLayout>, dm: DescMode = "auto") =>
+    paginateMoodboard(pinsList, layout, pin => isDescLong(pin, dm)), []);
 
   const getPageInsertPosition = useCallback((targetPage: number) => {
     if (targetPage < 0 || !project) return pins.length;
@@ -2333,22 +2291,38 @@ export default function Editor() {
   };
 
   const updatePin = useMutation({
+    mutationKey: ["editor-pin-save", projectId],
+    scope: { id: `editor-pin-save-${projectId}` },
     mutationFn: async ({ pinId, data }: { pinId: number; data: Partial<Pin> }) => {
       const res = await apiRequest("PATCH", `/api/pins/${pinId}`, data);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_result, { pinId, data }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "pins"] });
+      if (activeSaveProjectRef.current !== projectId) return;
+      setFailedPinChanges(previous => {
+        const next = { ...previous }, remaining = { ...next[pinId] };
+        for (const key of Object.keys(data)) delete remaining[key as keyof Pin];
+        if (Object.keys(remaining).length) next[pinId] = remaining;
+        else delete next[pinId];
+        return next;
+      });
+      setSavedAt(new Date());
+    },
+    onError: (_error, { pinId, data }) => {
+      if (activeSaveProjectRef.current === projectId) setFailedPinChanges(previous => ({ ...previous, [pinId]: { ...previous[pinId], ...data } }));
     },
   });
 
   const deletePinRaw = useMutation({
+    scope: { id: `editor-pin-save-${projectId}` },
     mutationFn: async (pinId: number) => {
       await apiRequest("DELETE", `/api/pins/${pinId}`);
     },
-    onSuccess: () => {
+    onSuccess: (_result, pinId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "pins"] });
       setSelectedPin(null);
+      setFailedPinChanges(previous => { const next = { ...previous }; delete next[pinId]; return next; });
     },
   });
 
@@ -2628,6 +2602,13 @@ export default function Editor() {
             </Button>
             <ThemeToggle />
           </div>
+        </div>
+        <div className="flex items-center gap-2 border-t border-border/30 px-3 sm:px-4 py-1 text-xs" role="status" aria-live="polite" data-testid="editor-save-status">
+          {isSavingEdits ? <><Loader2 className="w-3 h-3 animate-spin" />Saving…</> : hasFailedEdits ? <><AlertTriangle className="w-3 h-3 text-destructive" /><span className="text-destructive">Some edits were not saved.</span></> : savedAt ? <><Check className="w-3 h-3" /><span title={`Last saved edit: ${savedAt.toLocaleTimeString()}`}>Saved</span></> : <span className="text-muted-foreground">Edits save automatically when you finish a field.</span>}
+          {hasFailedEdits && <Button variant="ghost" size="sm" disabled={isSavingEdits} className="h-6 px-2 text-xs" data-testid="button-retry-save" onClick={() => {
+            if (Object.keys(failedProjectChanges).length) updateProject.mutate({ ...failedProjectChanges });
+            for (const [pinId, data] of Object.entries(failedPinChanges)) updatePin.mutate({ pinId: Number(pinId), data: { ...data } });
+          }}><RefreshCw className="w-3 h-3 mr-1" />Retry saving</Button>}
         </div>
       </header>
 

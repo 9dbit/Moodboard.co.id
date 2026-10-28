@@ -9,6 +9,7 @@ import { Link } from "wouter";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useMetaTags } from "@/hooks/use-meta-tags";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Contact() {
   useMetaTags({
@@ -23,14 +24,32 @@ export default function Contact() {
   const [email, setEmail] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({ title: "Message sent!", description: "We'll get back to you within 24 hours." });
-    setName("");
-    setEmail("");
-    setSubject("");
-    setMessage("");
+    if (isSending) return;
+    setIsSending(true);
+    setSendError(null);
+    setReceipt(null);
+    try {
+      const response = await apiRequest("POST", "/api/contact", { requestId, name, email, subject, message });
+      const result = await response.json();
+      if (!result.received || !result.reference) throw new Error("The server did not confirm receipt. Please try again.");
+      setReceipt(result.reference);
+      toast({ title: "Message received", description: "Your message has been saved for the support team." });
+      setName(""); setEmail(""); setSubject(""); setMessage("");
+      setRequestId(crypto.randomUUID());
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "Please try again.";
+      const match = raw.match(/\{.*\}$/s);
+      let detail = "Your message could not be saved. Please try again; your text is still here.";
+      try { if (match) detail = JSON.parse(match[0]).message || detail; } catch {}
+      setSendError(detail);
+    } finally { setIsSending(false); }
   };
 
   return (
@@ -62,15 +81,17 @@ export default function Contact() {
           <div className="md:col-span-2">
             <Card className="glass">
               <CardContent className="pt-6 pb-6">
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-4" aria-busy={isSending}>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium mb-1.5 block">Name</label>
                       <Input
                         placeholder="Your name"
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e) => { setName(e.target.value); setRequestId(crypto.randomUUID()); }}
                         required
+                        maxLength={120}
+                        disabled={isSending}
                         data-testid="input-contact-name"
                       />
                     </div>
@@ -80,8 +101,10 @@ export default function Contact() {
                         type="email"
                         placeholder="your@email.com"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => { setEmail(e.target.value); setRequestId(crypto.randomUUID()); }}
                         required
+                        maxLength={254}
+                        disabled={isSending}
                         data-testid="input-contact-email"
                       />
                     </div>
@@ -91,8 +114,10 @@ export default function Contact() {
                     <Input
                       placeholder="How can we help?"
                       value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
+                      onChange={(e) => { setSubject(e.target.value); setRequestId(crypto.randomUUID()); }}
                       required
+                      maxLength={200}
+                      disabled={isSending}
                       data-testid="input-contact-subject"
                     />
                   </div>
@@ -101,14 +126,19 @@ export default function Contact() {
                     <Textarea
                       placeholder="Tell us more about your inquiry..."
                       value={message}
-                      onChange={(e) => setMessage(e.target.value)}
+                      onChange={(e) => { setMessage(e.target.value); setRequestId(crypto.randomUUID()); }}
                       required
+                      minLength={10}
+                      maxLength={10000}
+                      disabled={isSending}
                       className="min-h-[120px]"
                       data-testid="input-contact-message"
                     />
                   </div>
-                  <Button type="submit" className="w-full sm:w-auto" data-testid="button-send-message">
-                    Send Message
+                  {sendError && <p role="alert" className="text-sm text-destructive" data-testid="contact-send-error">{sendError}</p>}
+                  {receipt && <p role="status" className="text-sm text-muted-foreground" data-testid="contact-receipt">Message received. Reference: {receipt}</p>}
+                  <Button type="submit" disabled={isSending} className="w-full sm:w-auto" data-testid="button-send-message">
+                    {isSending ? "Sending…" : "Send Message"}
                   </Button>
                 </form>
               </CardContent>
@@ -123,9 +153,9 @@ export default function Contact() {
                     <Mail className="w-5 h-5" style={{ color: "hsl(24 85% 52%)" }} />
                   </div>
                   <div>
-                    <h3 className="font-medium text-sm mb-1">Email</h3>
-                    <p className="text-sm text-muted-foreground">support@moodboardstudio.com</p>
-                    <p className="text-xs text-muted-foreground mt-1">We respond within 24 hours</p>
+                    <h3 className="font-medium text-sm mb-1">Support inbox</h3>
+                    <p className="text-sm text-muted-foreground">Send your message using this form.</p>
+                    <p className="text-xs text-muted-foreground mt-1">You receive a reference when it has been saved.</p>
                   </div>
                 </div>
               </CardContent>
@@ -138,9 +168,9 @@ export default function Contact() {
                     <MessageSquare className="w-5 h-5" style={{ color: "hsl(24 85% 52%)" }} />
                   </div>
                   <div>
-                    <h3 className="font-medium text-sm mb-1">WhatsApp</h3>
-                    <p className="text-sm text-muted-foreground">+62 812 3456 7890</p>
-                    <p className="text-xs text-muted-foreground mt-1">Mon-Fri, 9AM-5PM WIB</p>
+                    <h3 className="font-medium text-sm mb-1">Reply details</h3>
+                    <p className="text-sm text-muted-foreground">Include an email address where we can reach you.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Keep your message reference for follow-up.</p>
                   </div>
                 </div>
               </CardContent>

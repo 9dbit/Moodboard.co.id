@@ -11,7 +11,7 @@ export interface StorageFile {
   exists(): Promise<[boolean]>;
   getMetadata(): Promise<[ObjectMetadata]>;
   setMetadata(value: { metadata?: Record<string, string> }): Promise<void>;
-  save(buffer: Buffer, options?: { contentType?: string; resumable?: boolean }): Promise<void>;
+  save(buffer: Buffer, options?: { contentType?: string; resumable?: boolean; metadata?: Record<string, string> }): Promise<void>;
   download(): Promise<[Buffer]>;
   createReadStream(): Readable;
 }

@@ -26,6 +26,10 @@ export default function AuthPage({ register = false }: { register?: boolean }) {
   const destination = returnDestination();
   const otherRoute = `${register ? "/sign-in" : "/sign-up"}${destination !== "/" ? `?returnTo=${encodeURIComponent(destination)}` : ""}`;
 
+  if (user && destination.startsWith("/oauth/consent?")) {
+    window.location.replace(destination);
+    return null;
+  }
   if (user) return <Redirect to={destination} />;
 
   async function submit(event: FormEvent) {
@@ -36,7 +40,8 @@ export default function AuthPage({ register = false }: { register?: boolean }) {
     try {
       if (register) await signUp({ email: email.trim(), password, firstName: firstName.trim(), lastName: lastName.trim() });
       else await signIn(email.trim(), password);
-      navigate(destination, { replace: true });
+      if (destination.startsWith("/oauth/consent?")) window.location.assign(destination);
+      else navigate(destination, { replace: true });
     } catch (error) {
       setError(error instanceof Error ? error.message : "Please try again.");
     } finally {

@@ -1,6 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, mkdir, copyFile } from "fs/promises";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -59,6 +59,10 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+  await mkdir("dist/assets", { recursive: true });
+  for (const file of ["NotoSans-Regular.ttf", "NotoSans-LICENSE.txt"]) {
+    await copyFile(`server/assets/${file}`, `dist/assets/${file}`);
+  }
 }
 
 buildAll().catch((err) => {

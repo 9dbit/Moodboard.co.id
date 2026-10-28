@@ -2,6 +2,7 @@ import type { Express, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { requireAuth } from "./middlewares/requireAuth";
+import { registerContactRoutes } from "./contact";
 import { issueActivationLink, authRateLimit } from "./auth";
 import { insertProjectSchema, insertPinSchema, type Pin } from "@shared/schema";
 import OpenAI from "openai";
@@ -13,6 +14,11 @@ import path from "path";
 import crypto from "crypto";
 import { fetchRemoteImage, inspectImageBuffer, optimizeImage } from "./image-recovery";
 import { describeDesignImage } from "./describe-image";
+import { AssetError, ingestOwnedImage, publicSharedBoard } from "./assets";
+import { fetchPinterest, importDelay, ImportInputError, isPinterestBoardUrl, isPinterestShortUrl, parsePinterestUrl, pinterestImageCandidates, validatePublicReferenceUrl } from "./import-network";
+import { importJobs, sanitizeImportImages, startImportWorker, type PinterestImage } from "./import-jobs";
+import { pool } from "./db";
+import { applyPaymentNotification, verifyPaymentNotification, PaymentWebhookError } from "./payments";
 const isAuthenticated = requireAuth;
 
 const ADMIN_CREDENTIALS = {
@@ -67,6 +73,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   registerObjectStorageRoutes(app);
+  registerContactRoutes(app, isAdmin);
 
   app.get("/api/me", requireAuth, (req, res) => {
     res.json(req.dbUser);
@@ -139,8 +146,9 @@ export async function registerRoutes(
       res.json(project);
     } catch (error: any) {
       if (error?.name === "ZodError") {
-        return res.status(400).json({ message: "Invalid project data", errors: error.errors });
+        return res.status(400).json({ message: "Invalid project data", errors: error.issues });
       }
+      if (error instanceof AssetError) return void res.status(error.status).json({ message: error.message });
       console.error("Error creating project:", error);
       res.status(500).json({ message: "Failed to create project" });
     }
@@ -165,6 +173,7 @@ export async function registerRoutes(
       const updated = await storage.updateProject(project.id, req.body);
       res.json(updated);
     } catch (error) {
+      if (error instanceof AssetError) return void res.status(error.status).json({ message: error.message });
       res.status(500).json({ message: "Failed to update project" });
     }
   });
@@ -206,8 +215,9 @@ export async function registerRoutes(
       res.json(pin);
     } catch (error: any) {
       if (error?.name === "ZodError") {
-        return res.status(400).json({ message: "Invalid pin data", errors: error.errors });
+        return res.status(400).json({ message: "Invalid pin data", errors: error.issues });
       }
+      if (error instanceof AssetError) return void res.status(error.status).json({ message: error.message });
       console.error("Error creating pin:", error);
       res.status(500).json({ message: "Failed to create pin" });
     }
@@ -223,6 +233,7 @@ export async function registerRoutes(
       const updated = await storage.updatePin(pin.id, req.body);
       res.json(updated);
     } catch (error) {
+      if (error instanceof AssetError) return void res.status(error.status).json({ message: error.message });
       res.status(500).json({ message: "Failed to update pin" });
     }
   });
@@ -292,7 +303,8 @@ export async function registerRoutes(
       if (!requestedVersion || requestedVersion !== currentVersion) {
         return res.status(409).json({ message: "Image changed after it was checked; please retry export" });
       }
-      res.set({ "Content-Type": contentType, "Content-Length": buffer.length, "Cache-Control": "private, max-age=300" });
+      res.set({ "Content-Type": contentType, "Content-Length": buffer.length, "Cache-Control": "private, max-age=300",
+        "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox", "Referrer-Policy": "no-referrer" });
       res.send(buffer);
     } catch {
       res.status(404).json({ message: "Image unavailable" });
@@ -306,13 +318,7 @@ export async function registerRoutes(
       const { buffer } = await readPinImage(owned.pin);
       // Sharp throws for undecodable data; do not claim a repair in that case.
       const optimized = await optimizeImage(buffer);
-      const objectId = `${crypto.randomUUID()}.jpg`;
-      const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
-      const parts = (privateDir.startsWith("/") ? privateDir : `/${privateDir}`).split("/").filter(Boolean);
-      if (!parts[0]) throw new Error("Object storage is not configured");
-      const file = objectStorageClient.bucket(parts[0]).file(`${parts.slice(1).join("/")}/uploads/${objectId}`);
-      await file.save(optimized, { contentType: "image/jpeg", resumable: false });
-      const url = `/objects/uploads/${objectId}`;
+      const { url } = await ingestOwnedImage(getUserId(req), optimized, "image/jpeg");
       const updated = await storage.updatePin(owned.pin.id, { imagePath: url, imageUrl: url });
       res.json({ pin: updated, url, metadata: await inspectImageBuffer(optimized) });
     } catch (error: any) {
@@ -561,34 +567,14 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
       const currentUrl = pin.imagePath || pin.imageUrl || "";
       if (!currentUrl) return res.status(400).json({ message: "No image URL" });
 
-      const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-
-      const altSizes = ["originals", "orig", "736x", "564x", "474x", "236x"];
-      const candidateUrls: string[] = [];
-
-      const match = currentUrl.match(/i\.pinimg\.com\/(originals|orig|\d+x)\//);
-      if (match) {
-        for (const size of altSizes) {
-          const alt = currentUrl.replace(/i\.pinimg\.com\/(originals|orig|\d+x)\//, `i.pinimg.com/${size}/`);
-          if (alt !== currentUrl) candidateUrls.push(alt);
-        }
-      }
-      candidateUrls.push(currentUrl);
+      const candidateUrls = pinterestImageCandidates(currentUrl);
 
       for (const url of candidateUrls) {
         try {
-          const headRes = await fetch(url, {
-            method: "HEAD",
-            headers: { "User-Agent": UA },
-            signal: AbortSignal.timeout(8000),
-            redirect: "follow",
-          });
-          if (headRes.ok) {
-            const ct = headRes.headers.get("content-type") || "";
-            if (ct.startsWith("image/")) {
-              const updated = await storage.updatePin(pin.id, { imageUrl: url });
-              return res.json({ success: true, pin: updated, newUrl: url });
-            }
+          const { contentType } = await fetchRemoteImage(url, 8000);
+          if (contentType.startsWith("image/")) {
+            const updated = await storage.updatePin(pin.id, { imageUrl: url, imagePath: null });
+            return res.json({ success: true, pin: updated, newUrl: url });
           }
         } catch {}
       }
@@ -608,11 +594,9 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
 
       const schema = z.object({ pinIds: z.array(z.number().int().positive()).min(1) });
       const parsed = schema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ message: "Invalid pin IDs", errors: parsed.error.errors });
+      if (!parsed.success) return res.status(400).json({ message: "Invalid pin IDs", errors: parsed.error.issues });
       const { pinIds } = parsed.data;
 
-      const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-      const altSizes = ["originals", "orig", "736x", "564x", "474x", "236x"];
       let fixed = 0;
       let failed = 0;
 
@@ -623,27 +607,14 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
         const currentUrl = pin.imagePath || pin.imageUrl || "";
         if (!currentUrl) { failed++; continue; }
 
-        const candidateUrls: string[] = [];
-        const match = currentUrl.match(/i\.pinimg\.com\/(originals|orig|\d+x)\//);
-        if (match) {
-          for (const size of altSizes) {
-            const alt = currentUrl.replace(/i\.pinimg\.com\/(originals|orig|\d+x)\//, `i.pinimg.com/${size}/`);
-            if (alt !== currentUrl) candidateUrls.push(alt);
-          }
-        }
-        candidateUrls.push(currentUrl);
+        const candidateUrls = pinterestImageCandidates(currentUrl);
 
         let foundWorking = false;
         for (const url of candidateUrls) {
           try {
-            const headRes = await fetch(url, {
-              method: "HEAD",
-              headers: { "User-Agent": UA },
-              signal: AbortSignal.timeout(8000),
-              redirect: "follow",
-            });
-            if (headRes.ok && (headRes.headers.get("content-type") || "").startsWith("image/")) {
-              await storage.updatePin(pin.id, { imageUrl: url });
+            const { contentType } = await fetchRemoteImage(url, 8000);
+            if (contentType.startsWith("image/")) {
+              await storage.updatePin(pin.id, { imageUrl: url, imagePath: null });
               foundWorking = true;
               fixed++;
               break;
@@ -686,8 +657,16 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
 
   async function scrapePinterestBoard(
     boardUrl: string,
-    onProgress?: (count: number, message: string, thumbnails: string[]) => void
+    reportProgress?: (count: number, message: string, thumbnails: string[]) => void,
+    signal?: AbortSignal,
   ): Promise<Array<{ imageUrl: string; title: string; sourceUrl: string }>> {
+    boardUrl = parsePinterestUrl(boardUrl).href;
+    const onProgress=(count:number,message:string,thumbnails:string[])=>{
+      signal?.throwIfAborted();
+      if(count>2000)throw new ImportInputError("A board can import up to 2000 images. Choose a smaller board or upload selected references.");
+      reportProgress?.(count,message,thumbnails);
+    };
+    const fetch = (url: string, options?: RequestInit) => fetchPinterest(url, options, { signal });
     const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
     const response = await fetch(boardUrl, {
@@ -877,7 +856,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
     }
 
     if (boardId && bookmark && bookmark !== "-end-") {
-      const maxPages = 500;
+      const maxPages = 40;
       let consecutiveErrors = 0;
       let rateLimitCount = 0;
       let baseDelay = 1500;
@@ -903,7 +882,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
         }
 
         const delay = baseDelay + Math.random() * 1200;
-        await new Promise((r) => setTimeout(r, delay));
+        await importDelay(delay, signal);
 
         const formData = new URLSearchParams();
         formData.append("source_url", sourceUrlPath || "/");
@@ -948,7 +927,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
             const rateLimitDelay = Math.min(5000 * Math.pow(2, rateLimitCount - 1), 60000);
             console.log(`[Pinterest] Rate limited (${apiRes.status}) on page ${page + 1}, waiting ${Math.round(rateLimitDelay / 1000)}s before retry (attempt ${rateLimitCount}, total: ${totalRateLimits})`);
             onProgress?.(results.length, `Scraping still in progress — waiting ${Math.round(rateLimitDelay / 1000)}s before next batch... (${results.length} images found)`, getThumbUrls());
-            await new Promise((r) => setTimeout(r, rateLimitDelay));
+            await importDelay(rateLimitDelay, signal);
             baseDelay = Math.min(baseDelay + 500, 6000);
             page--;
             continue;
@@ -958,7 +937,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
             const errorDelay = 3000 * consecutiveErrors;
             console.log(`[Pinterest] Error ${apiRes.status} on page ${page + 1}, retrying in ${errorDelay / 1000}s (error ${consecutiveErrors})`);
             onProgress?.(results.length, `Scraping still in progress — retrying... (${results.length} images found)`, getThumbUrls());
-            await new Promise((r) => setTimeout(r, errorDelay));
+            await importDelay(errorDelay, signal);
             page--;
             continue;
           }
@@ -1013,7 +992,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
           if (isTimeout) {
             const timeoutDelay = 3000 * consecutiveErrors;
             console.log(`[Pinterest] Timeout on page ${page + 1}, waiting ${timeoutDelay / 1000}s (error ${consecutiveErrors})`);
-            await new Promise((r) => setTimeout(r, timeoutDelay));
+            await importDelay(timeoutDelay, signal);
             page--;
           } else {
             console.log(`[Pinterest] Error on page ${page + 1}: ${err?.message}`);
@@ -1067,7 +1046,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
             let secEmptyPages = 0;
 
             while (sectionBookmark !== null && sectionBookmark !== "-end-" && sectionPages < 100 && secEmptyPages < 5) {
-              await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1000));
+              await importDelay(1500 + Math.random() * 1000, signal);
 
               const secFormData = new URLSearchParams();
               secFormData.append("source_url", sourceUrlPath || "/");
@@ -1103,7 +1082,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
                 if (secRes.status === 429 || secRes.status === 403) {
                   console.log(`[Pinterest] Rate limited on section ${section.title || section.id}, waiting 10s`);
                   onProgress?.(results.length, `Scraping still in progress — waiting before next section batch... (${results.length} images)`, getThumbUrls());
-                  await new Promise((r) => setTimeout(r, 10000));
+                  await importDelay(10000, signal);
                   continue;
                 }
                 if (!secRes.ok) break;
@@ -1190,47 +1169,21 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
     }
 
     console.log(`[Pinterest] Total extracted: ${results.length} pins from board`);
-    return results;
+    signal?.throwIfAborted();
+    return sanitizeImportImages(results, boardUrl);
   }
 
   async function resolvePinterestShortUrl(url: string): Promise<string> {
-    if (!url.match(/pin\.it\//)) return url;
-    try {
-      const response = await fetch(url, {
+    if (!isPinterestShortUrl(url)) return url;
+      const response = await fetchPinterest(url, {
         method: "HEAD",
-        redirect: "follow",
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
         signal: AbortSignal.timeout(8000),
       });
-      return response.url || url;
-    } catch {
-      return url;
-    }
+      return parsePinterestUrl(response.url).href;
   }
 
-  function isPinterestBoardUrl(url: string): boolean {
-    if (url.match(/\/pin\/\d+/)) return false;
-    if (url.match(/pinterest\.\w+\/[^/]+\/[^/]+/)) return true;
-    return false;
-  }
-
-  const scrapedCache = new Map<string, { images: Array<{ imageUrl: string; title: string; sourceUrl: string }>; timestamp: number }>();
-  const scrapeProgress = new Map<string, {
-    status: "scraping" | "done" | "error";
-    imageCount: number;
-    message: string;
-    thumbnails: string[];
-    cacheKey?: string;
-    boardUrl?: string;
-    error?: string;
-  }>();
-
-  setInterval(() => {
-    const now = Date.now();
-    for (const [key, val] of scrapedCache) {
-      if (now - val.timestamp > 10 * 60 * 1000) scrapedCache.delete(key);
-    }
-  }, 60000);
+  startImportWorker(scrapePinterestBoard);
 
   app.post("/api/scrape-preview", isAuthenticated, async (req, res) => {
     try {
@@ -1240,7 +1193,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
       }
 
       let resolvedUrl = url.trim();
-      if (resolvedUrl.match(/pin\.it\//)) {
+      if (isPinterestShortUrl(resolvedUrl)) {
         resolvedUrl = await resolvePinterestShortUrl(resolvedUrl);
       }
 
@@ -1249,15 +1202,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
       }
 
       const userId = getUserId(req);
-      const progressKey = `${userId}_progress`;
-      const cacheKey = `${userId}_${resolvedUrl}`;
-
-      scrapeProgress.set(progressKey, {
-        status: "scraping",
-        imageCount: 0,
-        message: "Connecting to Pinterest — this may take a few minutes for large boards...",
-        thumbnails: [],
-      });
+      const progressKey = await importJobs.create(userId, parsePinterestUrl(resolvedUrl).href);
 
       res.json({
         isPinterestBoard: true,
@@ -1266,50 +1211,19 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
         scraping: true,
       });
 
-      console.log(`[Preview] Starting async scrape for: ${resolvedUrl}`);
-      scrapePinterestBoard(resolvedUrl, (count, msg, thumbs) => {
-        scrapeProgress.set(progressKey, {
-          status: "scraping",
-          imageCount: count,
-          message: msg,
-          thumbnails: thumbs.slice(0, 6),
-        });
-      }).then((images) => {
-        console.log(`[Preview] Completed: ${images.length} images`);
-        scrapedCache.set(cacheKey, { images, timestamp: Date.now() });
-        scrapeProgress.set(progressKey, {
-          status: "done",
-          imageCount: images.length,
-          message: `Found ${images.length} images`,
-          thumbnails: images.slice(0, 6).map(img => img.imageUrl),
-          cacheKey,
-          boardUrl: resolvedUrl,
-        });
-      }).catch((error: any) => {
-        console.error("[Preview] Scrape error:", error);
-        scrapeProgress.set(progressKey, {
-          status: "error",
-          imageCount: 0,
-          message: "Failed to scrape board",
-          thumbnails: [],
-          error: error.message || "Unknown error",
-        });
-      });
     } catch (error: any) {
       console.error("Scrape preview error:", error);
+      if (error instanceof ImportInputError) return res.status(error.status).json({ message: error.message });
       res.status(500).json({ message: error.message || "Failed to scrape" });
     }
   });
 
-  app.get("/api/scrape-progress/:key", isAuthenticated, (req, res) => {
-    const progress = scrapeProgress.get((req.params.key as string));
+  app.get("/api/scrape-progress/:key", isAuthenticated, async (req, res) => {
+    const progress = await importJobs.progress(getUserId(req),req.params.key as string);
     if (!progress) {
-      return res.json({ status: "unknown", imageCount: 0, message: "No scrape in progress" });
+      return res.status(404).json({ status: "unknown", imageCount: 0, message: "No scrape in progress" });
     }
     res.json(progress);
-    if (progress.status === "done" || progress.status === "error") {
-      setTimeout(() => scrapeProgress.delete((req.params.key as string)), 60000);
-    }
   });
 
   app.post("/api/projects/:id/import-confirmed", isAuthenticated, async (req, res) => {
@@ -1318,47 +1232,12 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
       const project = await verifyProjectOwnership(parseInt((req.params.id as string)), userId);
       if (!project) return res.status(404).json({ message: "Not found" });
 
-      const { cacheKey, boardUrl } = req.body;
-      if (!cacheKey) return res.status(400).json({ message: "Cache key required" });
-
-      const cached = scrapedCache.get(cacheKey);
-      if (!cached) return res.status(410).json({ message: "Preview expired, please scrape again" });
-
-      const existingPins = await storage.getPinsByProject(project.id);
-      let position = existingPins.length;
-      const createdPins = [];
-
-      for (const bp of cached.images) {
-        const pin = await storage.createPin({
-          projectId: project.id,
-          imageUrl: bp.imageUrl,
-          sourceUrl: bp.sourceUrl,
-          title: bp.title,
-          position,
-        });
-        createdPins.push(pin);
-        position++;
-      }
-
-      scrapedCache.delete(cacheKey);
-
-      await storage.createSource({
-        projectId: project.id,
-        type: "pinterest",
-        url: boardUrl || "",
-        status: "completed",
-        totalItems: cached.images.length,
-        importedItems: createdPins.length,
-      });
-
-      res.json({
-        pins: createdPins,
-        imported: createdPins.length,
-        total: cached.images.length,
-        errors: [],
-      });
+      const { cacheKey } = req.body;
+      if (typeof cacheKey !== "string") return res.status(400).json({ message: "Cache key required" });
+      res.json(await importJobs.consume(userId,project.id,cacheKey));
     } catch (error) {
       console.error("Import confirmed error:", error);
+      if (error instanceof ImportInputError) return res.status(error.status).json({ message: error.message });
       res.status(500).json({ message: "Failed to import" });
     }
   });
@@ -1370,13 +1249,12 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
       if (!project) return res.status(404).json({ message: "Not found" });
 
       const { urls } = req.body;
-      if (!urls || !Array.isArray(urls) || urls.length === 0) {
-        return res.status(400).json({ message: "URLs array is required" });
+      if (!Array.isArray(urls) || urls.length === 0 || urls.length > 20 || urls.some(u=>typeof u!=="string"||u.length>4096)) {
+        return res.status(400).json({ message: "Provide 1 to 20 complete HTTPS URLs" });
       }
 
-      const existingPins = await storage.getPinsByProject(project.id);
-      let position = existingPins.length;
-      const createdPins = [];
+      const importSignal = AbortSignal.timeout(8 * 60 * 1000);
+      const images: PinterestImage[] = [];
       const errors: string[] = [];
 
       for (const rawUrl of urls) {
@@ -1384,7 +1262,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
         if (!url) continue;
 
         try {
-          if (url.match(/pin\.it\//)) {
+          if (isPinterestShortUrl(url)) {
             url = await resolvePinterestShortUrl(url);
             console.log(`Resolved pin.it URL to: ${url}`);
           }
@@ -1392,7 +1270,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
           if (isPinterestBoardUrl(url)) {
             try {
               console.log(`Scraping Pinterest board: ${url}`);
-              const boardPins = await scrapePinterestBoard(url);
+              const boardPins = await scrapePinterestBoard(url, undefined, importSignal);
               console.log(`Found ${boardPins.length} images from board`);
 
               if (boardPins.length === 0) {
@@ -1401,15 +1279,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
               }
 
               for (const bp of boardPins) {
-                const pin = await storage.createPin({
-                  projectId: project.id,
-                  imageUrl: bp.imageUrl,
-                  sourceUrl: bp.sourceUrl,
-                  title: bp.title,
-                  position,
-                });
-                createdPins.push(pin);
-                position++;
+                images.push(bp);
               }
             } catch (err: any) {
               console.error("Board scraping error:", err);
@@ -1422,15 +1292,17 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
           let title = "Imported Image";
           let sourceUrl = url;
 
-          if (url.includes("pinterest") || url.includes("pin.it")) {
-            const pinMatch = url.match(/\/pin\/(\d+)/);
+          let pinterest: URL | undefined;
+          try { pinterest = parsePinterestUrl(url); } catch {}
+          if (pinterest) {
+            const pinMatch = pinterest.pathname.match(/^\/pin\/(\d+)\/?$/);
             if (pinMatch) {
               try {
                 const oembedUrl = `https://www.pinterest.com/oembed.json?url=${encodeURIComponent(url)}`;
-                const oembedRes = await fetch(oembedUrl, {
+                const oembedRes = await fetchPinterest(oembedUrl, {
                   headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
                   signal: AbortSignal.timeout(8000),
-                });
+                }, { signal: importSignal });
                 if (oembedRes.ok) {
                   const oembedData = await oembedRes.json();
                   if (oembedData.url) {
@@ -1439,6 +1311,9 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
                     imageUrl = oembedData.thumbnail_url;
                   }
                   title = oembedData.title || oembedData.description || "Pinterest Pin";
+                  const sanitized = sanitizeImportImages([{ imageUrl, title, sourceUrl }], url);
+                  if (!sanitized.length) throw new ImportInputError("Pinterest did not return a supported image");
+                  imageUrl = sanitized[0].imageUrl;
                 } else {
                   errors.push(`Could not fetch Pinterest pin: ${url}`);
                   continue;
@@ -1452,11 +1327,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
               continue;
             }
           } else {
-            const urlLower = url.toLowerCase();
-            if (!urlLower.startsWith("http")) {
-              errors.push(`Invalid URL: ${url}`);
-              continue;
-            }
+            imageUrl = (await validatePublicReferenceUrl(url, undefined, importSignal)).href;
 
             const segments = url.split("/").filter(Boolean);
             const filename = segments[segments.length - 1]?.split("?")[0] || "";
@@ -1465,37 +1336,19 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
             }
           }
 
-          const pin = await storage.createPin({
-            projectId: project.id,
-            imageUrl,
-            sourceUrl,
-            title,
-            position,
-          });
-          createdPins.push(pin);
-          position++;
+          images.push({ imageUrl, sourceUrl, title });
         } catch (err) {
           errors.push(`Failed to import: ${url}`);
         }
       }
 
-      await storage.createSource({
-        projectId: project.id,
-        type: urls.some((u: string) => u.includes("pinterest")) ? "pinterest" : "url",
-        url: urls.join("\n"),
-        status: "completed",
-        totalItems: urls.length,
-        importedItems: createdPins.length,
-      });
-
-      res.json({
-        pins: createdPins,
-        imported: createdPins.length,
-        total: urls.length,
-        errors,
-      });
+      const key = req.get("Idempotency-Key") || urls.map(u => u.trim()).join("\n");
+      if (key.length > 81920) return res.status(400).json({ message: "Import request key is too large" });
+      const result = await importJobs.importDirect(userId, project.id, key, images, urls.join("\n"), urls.some(u => isPinterestBoardUrl(u) || isPinterestShortUrl(u)) ? "pinterest" : "url");
+      res.json({ ...result, errors, total: urls.length });
     } catch (error) {
       console.error("Import error:", error);
+      if (error instanceof ImportInputError) return res.status(error.status).json({ message: error.message });
       res.status(500).json({ message: "Failed to import" });
     }
   });
@@ -1519,7 +1372,8 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
       if (!project) return res.status(404).json({ message: "Not found or expired" });
 
       const projectPins = await storage.getPinsByProject(project.id);
-      res.json({ project, pins: projectPins });
+      res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+      res.json(publicSharedBoard(project, projectPins, String(req.params.token)));
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch shared project" });
     }
@@ -1539,25 +1393,9 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
       if (!req.file) {
         return res.status(400).json({ message: "No image file provided" });
       }
-      const ext = path.extname(req.file.originalname) || ".jpg";
-      const objectId = `${crypto.randomUUID()}${ext}`;
-      const privateDir = process.env.PRIVATE_OBJECT_DIR || "";
-
-      const fullPath = privateDir.startsWith("/") ? privateDir : `/${privateDir}`;
-      const pathParts = fullPath.split("/").filter(Boolean);
-      const bucketName = pathParts[0];
-      const objectName = pathParts.slice(1).join("/") + `/uploads/${objectId}`;
-
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
-      await file.save(req.file.buffer, {
-        contentType: req.file.mimetype,
-        resumable: false,
-      });
-
-      const publicUrl = `/objects/uploads/${objectId}`;
-      res.json({ url: publicUrl, filename: objectId });
+      res.json(await ingestOwnedImage(getUserId(req), req.file.buffer, req.file.mimetype));
     } catch (error) {
+      if (error instanceof AssetError) return void res.status(error.status).json({ message: error.message });
       console.error("Upload error:", error);
       res.status(500).json({ message: "Upload failed" });
     }
@@ -2026,7 +1864,7 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
         pro: { name: "Studio Pro", amount: 176000, tier: "pro" },
       }[plan];
 
-      const orderId = `MOODBOARD-${userId.slice(0, 8).toUpperCase()}-${Date.now()}`;
+      const orderId = `MOODBOARD-${Date.now()}-${crypto.randomBytes(8).toString("hex")}`;
 
       const tx = await storage.createTransaction({
         userId,
@@ -2082,11 +1920,12 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
           "Accept": "application/json",
         },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!response.ok) {
-        const errBody = await response.text();
-        console.error("12Pay payment creation error:", response.status, errBody);
+        await response.body?.cancel();
+        console.error("Payment gateway creation rejected", { status: response.status });
         await storage.updateTransaction(tx.id, { status: "failed" });
         return res.status(502).json({ message: "Payment gateway returned an error. Please try again." });
       }
@@ -2099,17 +1938,27 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
         status_message?: string;
       }
       const data = await response.json() as TwelvePayGatewayResponse;
-      const paymentUrl = data.payment_url || data.redirect_url || data.token;
+      const paymentUrl = data.payment_url || data.redirect_url;
 
       if (!paymentUrl) {
-        console.error("12Pay: no payment_url in response", data);
+        console.error("Payment gateway returned no checkout URL");
         await storage.updateTransaction(tx.id, { status: "failed" });
         return res.status(502).json({ message: "Could not get payment URL from gateway." });
       }
 
-      res.json({ paymentUrl, orderId, transactionId: tx.id });
+      let checkoutUrl: URL;
+      try { checkoutUrl = new URL(paymentUrl); }
+      catch {
+        await storage.updateTransaction(tx.id, { status: "failed" });
+        return res.status(502).json({ message: "Payment gateway returned an invalid checkout URL." });
+      }
+      if (checkoutUrl.protocol !== "https:" || checkoutUrl.username || checkoutUrl.password) {
+        await storage.updateTransaction(tx.id, { status: "failed" });
+        return res.status(502).json({ message: "Payment gateway returned an invalid checkout URL." });
+      }
+      res.json({ paymentUrl: checkoutUrl.href, orderId, transactionId: tx.id });
     } catch (error) {
-      console.error("Payment create error:", error);
+      console.error("Payment create failed", { code: error instanceof Error && error.name === "TimeoutError" ? "gateway_timeout" : "request_failed" });
       res.status(500).json({ message: "Failed to create payment" });
     }
   });
@@ -2127,56 +1976,14 @@ Your tone should be ${style.tone}. Focus on ${style.focus}. Write something evoc
 
   app.post("/api/payment/webhook", async (req, res) => {
     try {
-      console.log("12Pay webhook received:", JSON.stringify(req.body));
-      const { order_id, transaction_status, fraud_status, signature_key, gross_amount, status_code } = req.body || {};
-
-      if (!order_id) return res.json({ received: true });
-
       const serverKey = await storage.getAdminSetting("payment_gateway_secret_key");
-      if (serverKey) {
-        if (!signature_key) {
-          console.warn("12Pay webhook: missing signature for order", order_id);
-          return res.status(403).json({ message: "Missing signature" });
-        }
-        const crypto = await import("crypto");
-        const expectedSig = crypto.createHash("sha512")
-          .update(`${order_id}${status_code}${gross_amount}${serverKey}`)
-          .digest("hex");
-        if (expectedSig !== signature_key) {
-          console.warn("12Pay webhook: invalid signature for order", order_id);
-          return res.status(403).json({ message: "Invalid signature" });
-        }
-      }
-
-      const tx = await storage.getTransactionByGatewayId(order_id);
-      if (!tx) {
-        console.warn("12Pay webhook: transaction not found for order", order_id);
-        return res.json({ received: true });
-      }
-
-      const isSuccess = transaction_status === "settlement" || transaction_status === "capture" || transaction_status === "success";
-      const isFailed = transaction_status === "deny" || transaction_status === "cancel" || transaction_status === "expire" || transaction_status === "failure";
-      const isFraud = fraud_status === "deny";
-
-      if (isSuccess && !isFraud) {
-        await storage.updateTransaction(tx.id, { status: "completed" });
-        const meta = tx.metadata as { plan?: string; tier?: string } | null;
-        const tier = meta?.tier || "lite";
-        const expiresAt = new Date();
-        expiresAt.setMonth(expiresAt.getMonth() + 1);
-        await storage.updateUser(tx.userId, {
-          subscriptionTier: tier,
-          trialExpiresAt: expiresAt,
-        });
-        console.log(`12Pay: user ${tx.userId} upgraded to ${tier} via order ${order_id}`);
-      } else if (isFailed || isFraud) {
-        await storage.updateTransaction(tx.id, { status: "failed" });
-        console.log(`12Pay: payment failed for order ${order_id} (${transaction_status})`);
-      }
-
-      res.json({ received: true });
+      const notification = verifyPaymentNotification(req.body, serverKey);
+      const result = await applyPaymentNotification(pool, notification);
+      console.info("Payment notification processed", { outcome: result.outcome });
+      res.json(result);
     } catch (error) {
-      console.error("Payment webhook error:", error);
+      if (error instanceof PaymentWebhookError) return res.status(error.status).json({ message: error.message });
+      console.error("Payment notification processing failed", { code: "database_or_request_error" });
       res.status(500).json({ message: "Webhook processing failed" });
     }
   });

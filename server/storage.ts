@@ -1,5 +1,6 @@
 import { db } from "./db";
-import { eq, and, desc, sql, count } from "drizzle-orm";
+import { eq, and, desc, sql, count, or, isNull, gt } from "drizzle-orm";
+import { assertOwnedAssetReferences, assetPath } from "./assets";
 import {
   projects,
   pins,
@@ -100,6 +101,7 @@ export interface IStorage {
 
 class DatabaseStorage implements IStorage {
   async createProject(data: InsertProject): Promise<Project> {
+    await assertOwnedAssetReferences(data.userId, data);
     const [project] = await db.insert(projects).values(data).returning();
     return project;
   }
@@ -116,6 +118,11 @@ class DatabaseStorage implements IStorage {
   async updateProject(id: number, data: Partial<Project>): Promise<Project | undefined> {
     // Ownership and row identity never change through an editor patch.
     const { id: _id, userId: _userId, createdAt: _createdAt, updatedAt: _updatedAt, ...editable } = data;
+    if (assetPath(editable.studioLogoPath)) {
+      const project = await this.getProject(id);
+      if (!project) return undefined;
+      await assertOwnedAssetReferences(project.userId, editable);
+    }
     const [project] = await db
       .update(projects)
       .set({ ...editable, updatedAt: new Date() })
@@ -129,7 +136,8 @@ class DatabaseStorage implements IStorage {
   }
 
   async getProjectByShareToken(token: string): Promise<Project | undefined> {
-    const [project] = await db.select().from(projects).where(eq(projects.shareToken, token));
+    const [project] = await db.select().from(projects).where(and(eq(projects.shareToken, token),
+      or(isNull(projects.shareExpiresAt), gt(projects.shareExpiresAt, new Date()))));
     return project;
   }
 
@@ -143,6 +151,11 @@ class DatabaseStorage implements IStorage {
   }
 
   async createPin(data: InsertPin): Promise<Pin> {
+    if (assetPath(data.imagePath) || assetPath(data.imageUrl)) {
+      const project = await this.getProject(data.projectId);
+      if (!project) throw new Error("Project not found");
+      await assertOwnedAssetReferences(project.userId, data);
+    }
     const [pin] = await db.insert(pins).values(data).returning();
     return pin;
   }
@@ -159,6 +172,12 @@ class DatabaseStorage implements IStorage {
   async updatePin(id: number, data: Partial<Pin>): Promise<Pin | undefined> {
     // All callers, including snapshot restoration, retain the original parent.
     const { id: _id, projectId: _projectId, createdAt: _createdAt, ...editable } = data;
+    if (assetPath(editable.imagePath) || assetPath(editable.imageUrl)) {
+      const original = await this.getPin(id);
+      const project = original && await this.getProject(original.projectId);
+      if (!project) return undefined;
+      await assertOwnedAssetReferences(project.userId, editable);
+    }
     const [pin] = await db.update(pins).set(editable).where(eq(pins.id, id)).returning();
     return pin;
   }

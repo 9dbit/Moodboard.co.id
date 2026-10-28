@@ -1,0 +1,54 @@
+name: Quality checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: moodboard_test
+          POSTGRES_PASSWORD: isolated-ci-fixture
+          POSTGRES_DB: moodboard_auth_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U moodboard_test -d moodboard_auth_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AUTH_TEST_DATABASE_URL: postgresql://moodboard_test:isolated-ci-fixture@127.0.0.1:5432/moodboard_auth_test
+      PAYMENT_TEST_DATABASE_URL: postgresql://moodboard_test:isolated-ci-fixture@127.0.0.1:5432/moodboard_payment_test
+      EXPORT_TEST_DATABASE_URL: postgresql://moodboard_test:isolated-ci-fixture@127.0.0.1:5432/moodboard_export_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Select installed Chromium
+        run: |
+          browser_path="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -x "$browser_path"
+          echo "CHROMIUM_PATH=$browser_path" >> "$GITHUB_ENV"
+      - run: npm run check
+      - name: Create isolated payment and export databases
+        run: node script/create-test-databases.mjs
+      - run: npm run test:ci
+      - run: npm run build
+      - run: npm audit --audit-level=high

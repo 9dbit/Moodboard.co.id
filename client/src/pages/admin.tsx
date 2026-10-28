@@ -61,7 +61,7 @@ import {
   Check,
 } from "lucide-react";
 
-type AdminTab = "dashboard" | "users" | "finance" | "database" | "settings" | "affiliate";
+type AdminTab = "dashboard" | "users" | "finance" | "database" | "settings" | "affiliate" | "support";
 
 interface AdminUser {
   id: string;
@@ -239,6 +239,7 @@ export default function AdminPanel() {
     { id: "finance", label: "Finance", icon: DollarSign },
     { id: "affiliate", label: "Affiliate", icon: Megaphone },
     { id: "database", label: "Database", icon: Database },
+    { id: "support", label: "Support inbox", icon: Mail },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -295,10 +296,38 @@ export default function AdminPanel() {
         {activeTab === "finance" && <FinanceTab />}
         {activeTab === "affiliate" && <AffiliateTab />}
         {activeTab === "database" && <DatabaseTab />}
+        {activeTab === "support" && <SupportInboxTab />}
         {activeTab === "settings" && <SettingsTab />}
       </div>
     </div>
   );
+}
+
+function SupportInboxTab() {
+  const [search, setSearch] = useState("");
+  const inbox = useQuery<{ messages: Array<{ id: string; name: string; email: string; subject: string; message: string; createdAt: string }> }>({
+    queryKey: ["/api/admin/contact-messages?limit=100"], staleTime: 0,
+  });
+  const visible = (inbox.data?.messages || []).filter(message => `${message.name} ${message.email} ${message.subject} ${message.message} ${message.id}`.toLowerCase().includes(search.toLowerCase()));
+  return <section aria-labelledby="support-inbox-title" data-testid="support-inbox">
+    <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
+      <div><h2 id="support-inbox-title" className="text-lg font-semibold">Support inbox</h2><p className="text-sm text-muted-foreground">The most recent 100 messages received from the contact form.</p></div>
+      <Button variant="outline" size="sm" disabled={inbox.isFetching} onClick={() => inbox.refetch()} data-testid="button-refresh-support">{inbox.isFetching && <Loader2 className="w-3 h-3 mr-2 animate-spin" />}Refresh</Button>
+    </div>
+    <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search name, email, subject, or reference" aria-label="Search support messages" className="mb-4" />
+    {inbox.isPending ? <p role="status" className="text-sm text-muted-foreground">Loading support messages…</p> : inbox.isError ? <p role="alert" className="text-sm text-destructive">The support inbox could not be loaded. Try Refresh.</p> : !visible.length ? <p className="text-sm text-muted-foreground">{search ? "No messages match your search." : "No messages have been received yet."}</p> : <div className="space-y-4">
+      {visible.map(message => <Card key={message.id} data-testid={`support-message-${message.id}`}>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base break-words">{message.subject}</CardTitle>
+          <p className="text-sm break-words">{message.name} · {message.email}</p>
+          <p className="text-xs text-muted-foreground break-all">Reference: {message.id} · {new Date(message.createdAt).toLocaleString()}</p>
+        </CardHeader>
+        <CardContent><p className="whitespace-pre-wrap break-words text-sm">{message.message}</p>
+          <Button asChild variant="outline" size="sm" className="mt-4"><a href={`mailto:${encodeURIComponent(message.email)}?subject=${encodeURIComponent(`Re: ${message.subject.replace(/[\r\n]/g, " ")} [${message.id}]`)}`}>Reply by email</a></Button>
+        </CardContent>
+      </Card>)}
+    </div>}
+  </section>;
 }
 
 function DashboardTab() {

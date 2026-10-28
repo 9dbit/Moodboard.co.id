@@ -5,6 +5,12 @@ import { createServer } from "http";
 import cookieParser from "cookie-parser";
 import { initializeAuthSchema, loadSession, registerAuthRoutes, sameOriginGuard } from "./auth";
 import { pool } from "./db";
+import { initializeAssetSchema } from "./assets";
+import { initializeImportSchema } from "./import-jobs";
+import { initializeContactSchema } from "./contact";
+import { initializeExportSchema, registerExportRoutes, startExportWorker } from "./export-service";
+import { initializeMcpSchema } from "./mcp-auth";
+import { registerMcpRoutes } from "./mcp";
 
 
 const app = express();
@@ -55,7 +61,7 @@ export function log(message: string, source = "express") {
 
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
+  const path = req.path.replace(/^\/api\/share\/[^/]+/, "/api/share/[redacted]");
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
@@ -70,9 +76,18 @@ app.use((req, res, next) => {
 
 (async () => {
   await initializeAuthSchema();
+  await initializeAssetSchema();
+  await initializeImportSchema();
+  await initializeContactSchema();
+  await initializeExportSchema();
+  await initializeMcpSchema();
   app.use("/api", loadSession);
+  app.use("/objects", loadSession);
   registerAuthRoutes(app);
   await registerRoutes(httpServer, app);
+  registerExportRoutes(app);
+  startExportWorker();
+  registerMcpRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

@@ -1,3 +1,4 @@
+import { getGridLayout, paginateMoodboard } from "@shared/layout-pagination";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -90,28 +91,6 @@ const IMAGE_ASPECT_RATIOS: Record<string, number | null> = {
   original: null,
 };
 
-function getGridLayout(isLandscape: boolean, imageLayout: string, gridColumns: number = 3, paperSize: string = "A3") {
-  const cols = Math.max(2, Math.min(5, gridColumns));
-  const imageAspect = IMAGE_ASPECT_RATIOS[imageLayout];
-  const base = PAPER_RATIOS[paperSize] || PAPER_RATIOS.A3;
-  const paperW = isLandscape ? base.h : base.w;
-  const paperH = isLandscape ? base.w : base.h;
-  if (imageAspect === null) {
-    const contentH = paperH * 0.82;
-    const colW = (paperW * 0.76) / cols;
-    const estRowH = colW * 1.0;
-    const gapEst = 0.015 * paperW;
-    const rows = Math.max(2, Math.floor((contentH + gapEst) / (estRowH + gapEst)));
-    return { cols, rows, perPage: cols * rows, useGrid: false };
-  }
-  const contentW = paperW * 0.76;
-  const contentH = paperH * 0.82;
-  const gapFraction = 0.015 * paperW;
-  const cellW = (contentW - gapFraction * (cols - 1)) / cols;
-  const cellH = cellW / imageAspect;
-  const rows = Math.max(2, Math.floor((contentH + gapFraction) / (cellH + gapFraction)));
-  return { cols, rows, perPage: cols * rows, useGrid: true };
-}
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const pages: T[][] = [];
@@ -296,42 +275,7 @@ export function ExportModal({ project, pins, open, onOpenChange, descMode = "aut
       const gridColumns = project.gridColumns || 3;
       const layout = getGridLayout(isLandscape, imageLayout, gridColumns, paperSize);
       const sortedPins = [...exportPins].sort((a, b) => (a.position || 0) - (b.position || 0));
-      const MAX_PAGES = 30;
-      const pages: Pin[][] = [];
-      if (layout.useGrid) {
-        const totalSlots = layout.perPage;
-        let currentPagePins: Pin[] = [];
-        let slotsUsed = 0;
-        let colPos = 0;
-        for (const pin of sortedPins) {
-          const isLong = isDescLong(pin, descMode);
-          let needsPad = isLong && colPos === layout.cols - 1;
-          let slotsNeeded = (needsPad ? 1 : 0) + (isLong ? 2 : 1);
-          if (slotsUsed + slotsNeeded > totalSlots && currentPagePins.length > 0) {
-            pages.push(currentPagePins);
-            currentPagePins = [];
-            slotsUsed = 0;
-            colPos = 0;
-            needsPad = false;
-            slotsNeeded = isLong ? 2 : 1;
-          }
-          if (needsPad) colPos = 0;
-          colPos = (colPos + (isLong ? 2 : 1)) % layout.cols;
-          currentPagePins.push(pin);
-          slotsUsed += slotsNeeded;
-        }
-        if (currentPagePins.length > 0) pages.push(currentPagePins);
-      } else {
-        let chunked = chunkArray(sortedPins, layout.perPage);
-        if (chunked.length > MAX_PAGES) {
-          const adjustedPerPage = Math.ceil(sortedPins.length / MAX_PAGES);
-          chunked = chunkArray(sortedPins, adjustedPerPage);
-        }
-        pages.push(...chunked);
-      }
-      if (pages.length > MAX_PAGES) {
-        pages.splice(MAX_PAGES);
-      }
+      const pages = paginateMoodboard(sortedPins, layout, pin => isDescLong(pin, descMode));
 
       const qualityPreset = QUALITY_PRESETS.find(q => q.value === exportQuality) || QUALITY_PRESETS[1];
       const scale = qualityPreset.scale;

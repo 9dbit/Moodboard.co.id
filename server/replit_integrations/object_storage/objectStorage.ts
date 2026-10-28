@@ -1,5 +1,6 @@
 import { Response } from "express";
 import { randomUUID } from "crypto";
+import sharp from "sharp";
 import type { StorageFile } from "./storageFile";
 import { s3StorageClient, signS3Upload, objectKeyFromS3Url } from "./s3Storage";
 import {
@@ -79,16 +80,41 @@ export class ObjectStorageService {
     try {
       // Get file metadata
       const [metadata] = await file.getMetadata();
-      // Get the ACL policy for the object.
-      const aclPolicy = await getObjectAclPolicy(file);
-      const isPublic = aclPolicy?.visibility === "public";
+      // Authorization is checked before this method. Active uploads are never rendered.
+      let contentType = (metadata.contentType || "").split(";", 1)[0].toLowerCase();
+      // Older migrated images may lack a MIME header. Decode bounded bytes to keep
+      // those references usable without trusting or rendering arbitrary content.
+      if (!contentType || contentType === "application/octet-stream") {
+        const size = Number(metadata.size || 0);
+        if (!Number.isSafeInteger(size) || size <= 0 || size > 25 * 1024 * 1024) {
+          res.status(415).json({ error: "Unsupported image content" }); return;
+        }
+        const [bytes] = await file.download();
+        if (bytes.length > 25 * 1024 * 1024) { res.status(415).json({ error: "Unsupported image content" }); return; }
+        try {
+          const input = sharp(bytes, { limitInputPixels: 40_000_000, failOn: "error" });
+          const image = await input.metadata();
+          const types: Record<string, string> = { jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
+          if (!image.format || !types[image.format]) throw new Error("Unsupported format");
+          await input.resize({ width: 1, height: 1, fit: "inside" }).raw().toBuffer();
+          contentType = types[image.format];
+        } catch { res.status(415).json({ error: "Unsupported image content" }); return; }
+        res.set({ "Content-Type": contentType, "Content-Length": bytes.length, "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox", "Referrer-Policy": "no-referrer" });
+        res.send(bytes); return;
+      }
+      if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(contentType)) {
+        res.status(415).json({ error: "Unsupported image content" });
+        return;
+      }
       // Set appropriate headers
       res.set({
-        "Content-Type": metadata.contentType || "application/octet-stream",
+        "Content-Type": contentType,
         "Content-Length": metadata.size,
-        "Cache-Control": `${
-          isPublic ? "public" : "private"
-        }, max-age=${cacheTtlSec}`,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Referrer-Policy": "no-referrer",
       });
 
       // Stream the file to the response

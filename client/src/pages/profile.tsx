@@ -1,5 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,12 +16,37 @@ import {
   FolderOpen,
   LogOut,
   User,
+  Loader2,
+  Link2,
 } from "lucide-react";
 import type { Project } from "@shared/schema";
+
+interface ConnectedApp {
+  id: string;
+  name: string;
+  scopes: string[] | string;
+  created_at: string;
+}
 
 export default function Profile() {
   const { user, signOut } = useAuth();
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const connections = useQuery<ConnectedApp[]>({
+    queryKey: ["/api/connections"], enabled: !!user, staleTime: 0,
+  });
+  const revokeConnection = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("DELETE", `/api/connections/${encodeURIComponent(id)}`);
+      const result = await response.json();
+      if (!result.success) throw new Error("Access could not be revoked. Please try again.");
+    },
+    onSuccess: (_result, id) => {
+      queryClient.setQueryData<ConnectedApp[]>(["/api/connections"], previous => previous?.filter(app => app.id !== id));
+      toast({ title: "App access revoked", description: "The app can no longer access your Moodboard account." });
+    },
+    onError: () => toast({ title: "Could not revoke access", description: "Please try again.", variant: "destructive" }),
+  });
 
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
@@ -99,6 +126,28 @@ export default function Profile() {
                 </div>
               </div>
             )}
+
+            <section className="border-t pt-6 mb-8" aria-labelledby="connected-apps-title">
+              <h2 id="connected-apps-title" className="font-medium mb-1 flex items-center gap-2"><Link2 className="w-4 h-4" />Connected apps</h2>
+              <p className="text-sm text-muted-foreground mb-4">Manage apps you have allowed to access your moodboards. Revoking access disconnects the app from your account.</p>
+              {connections.isPending ? <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Loader2 className="w-4 h-4 animate-spin" />Loading connected apps…</p> : connections.isError ? <div role="alert" className="text-sm"><p>We could not load your connected apps.</p><Button variant="outline" size="sm" className="mt-2" onClick={() => connections.refetch()}>Try again</Button></div> : !connections.data?.length ? <p className="text-sm text-muted-foreground" data-testid="connected-apps-empty">No apps are connected.</p> : <ul className="space-y-3" data-testid="connected-apps-list">
+                {connections.data.map(app => {
+                  const scopes = Array.isArray(app.scopes) ? app.scopes : (app.scopes || "").split(/\s+/).filter(Boolean);
+                  const createdAt = new Date(app.created_at);
+                  return <li key={app.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm break-words">{app.name || "Connected app"}</p>
+                      <p className="text-xs text-muted-foreground">Connected{Number.isNaN(createdAt.getTime()) ? "" : ` ${createdAt.toLocaleDateString()}`}</p>
+                      <div className="flex flex-wrap gap-1 mt-2" aria-label="Permissions">{scopes.map(scope => <Badge key={scope} variant="secondary" className="text-[10px]">{scope.replace(/[._:]/g, " ")}</Badge>)}</div>
+                    </div>
+                    <Button variant="outline" size="sm" disabled={revokeConnection.isPending} onClick={() => revokeConnection.mutate(app.id)} data-testid="button-revoke-app">
+                      {revokeConnection.isPending && revokeConnection.variables === app.id ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Revoking…</> : "Revoke access"}
+                    </Button>
+                  </li>;
+                })}
+              </ul>}
+              {revokeConnection.isError && <p className="mt-2 text-sm text-destructive" role="alert">App access could not be revoked. Please try again.</p>}
+            </section>
 
             <div className="flex justify-center">
               <Button variant="outline" onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL })} data-testid="button-profile-logout">

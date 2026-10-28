@@ -1,5 +1,5 @@
 import {
-  S3Client, HeadObjectCommand, GetObjectCommand, PutObjectCommand, CopyObjectCommand,
+  S3Client, HeadObjectCommand, GetObjectCommand, PutObjectCommand, CopyObjectCommand, DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { PassThrough, Readable } from "node:stream";
@@ -74,9 +74,10 @@ export class S3StorageFile implements StorageFile {
     }));
   }
 
-  async save(buffer: Buffer, options: { contentType?: string; resumable?: boolean } = {}): Promise<void> {
+  async save(buffer: Buffer, options: { contentType?: string; resumable?: boolean; metadata?: Record<string, string> } = {}): Promise<void> {
     await getS3Client().send(new PutObjectCommand({
       Bucket: this.bucket, Key: this.name, Body: buffer, ContentType: options.contentType,
+      ...(options.metadata ? { Metadata: { [METADATA_KEY]: Buffer.from(JSON.stringify(options.metadata)).toString("base64") } } : {}),
     }));
   }
 
@@ -108,6 +109,11 @@ export const s3StorageClient = {
 export async function signS3Upload(bucket: string, name: string): Promise<string> {
   checkBucket(bucket);
   return getSignedUrl(getS3Client(), new PutObjectCommand({ Bucket: bucket, Key: name }), { expiresIn: 900 });
+}
+
+export async function deleteS3Object(bucket: string, name: string): Promise<void> {
+  checkBucket(bucket);
+  await getS3Client().send(new DeleteObjectCommand({ Bucket: bucket, Key: name }));
 }
 
 export function objectKeyFromS3Url(raw: string): string | null {

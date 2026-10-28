@@ -15,6 +15,7 @@ Build produksi dan pemeriksaan:
 
 ```sh
 npm run check
+npm test
 npm run test:auth
 npm run test:export
 npm run test:image-recovery
@@ -24,6 +25,22 @@ npm start
 ```
 
 Pengujian integrasi autentikasi memerlukan PostgreSQL lokal terisolasi bernama `moodboard_auth_test` pada localhost dan variabel `AUTH_TEST_DATABASE_URL`. Tanpa variabel tersebut, `test:auth` hanya menjalankan pemeriksaan kriptografi dan melewati pengujian database. Jangan gunakan database produksi untuk pengujian.
+
+CI menjalankan `npm run test:ci` dengan `AUTH_TEST_DATABASE_URL`, `PAYMENT_TEST_DATABASE_URL` (`moodboard_payment_test`), `EXPORT_TEST_DATABASE_URL` (`moodboard_export_test`), serta `CHROMIUM_PATH`. Semua database wajib lokal/terisolasi. `node script/create-test-databases.mjs` menyiapkan dua database tambahan dengan nama tetap. CI menolak konfigurasi test yang tidak lengkap agar integration test tidak terlewati.
+
+## Plugin ChatGPT pribadi
+
+Endpoint MCP Streamable HTTP tersedia di `https://moodboard.co.id/mcp`. Petunjuk untuk pengguna ada di `/chatgpt`. Tambahkan endpoint melalui **ChatGPT Work → Plugins → Add custom MCP server**, pilih **OAuth**, lalu masuk dan setujui izin di Moodboard. Endpoint ini memerlukan Bearer token; cookie website tidak memberikan akses MCP. Pengguna dapat mencabut koneksi dari Profile.
+
+OAuth menggunakan router SDK MCP resmi, PKCE S256, discovery metadata, dynamic client registration, persetujuan pengguna, authorization code sekali pakai, access token satu jam, dan refresh token berotasi. Token disimpan sebagai hash; reset password membatalkan grant lama. `SITE_URL` wajib berisi origin HTTPS canonical pada produksi. Redirect URI OAuth didaftarkan tepat sesuai client; tidak ada wildcard callback atau password yang dimasukkan ke percakapan.
+
+Tools memakai schema sempit dan identitas dari token: membaca/menulis moodboard, memasukkan referensi yang dipilih, dan mengekspor PDF. Write yang mendukung retry memakai `idempotency_key` yang harus sama saat mengulang permintaan yang sama. Edit board memakai `updatedAt` terbaru sebagai `expected_version`, sehingga perubahan dari versi lama ditolak.
+
+Schema tambahan OAuth, upload intent, impor persisten, kontak, dan export job dibuat secara additive pada startup. Tidak ada penyalinan ulang atau penghapusan data pengguna. Job impor/ekspor memakai lease dan dapat dipulihkan setelah restart. Export worker berjalan pada proses aplikasi, satu job per proses, dengan batas eksplisit untuk melindungi sumber daya.
+
+PDF server memakai template ringkas dan font Noto Sans berlisensi OFL yang dibundel di `server/assets`; bukan salinan piksel dari seluruh tema browser. Seluruh referensi yang dipilih harus tercakup atau job gagal dengan pesan jelas. Hasil PDF privat disimpan pada prefix `exports`, berlaku 24 jam; tautan download terotorisasi berlaku 15 menit. Ekspor browser juga mempertahankan seluruh halaman.
+
+Integrasi ini disiapkan sebagai plugin pribadi/tim. Distribusi publik memerlukan pengajuan dan review OpenAI terpisah. Live gateway pembayaran dan layanan email opsional harus divalidasi dengan konfigurasi pemilik sebelum mengandalkannya untuk transaksi/email sungguhan.
 
 ## Railway
 
