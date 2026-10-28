@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import {before,beforeEach,after,test} from 'node:test';
 import {createHash} from 'node:crypto';
+import {existsSync} from 'node:fs';
+import {createServer} from 'node:http';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import pg from 'pg';
+import {chromium} from 'playwright-core';
 
 const url=process.env.AUTH_TEST_DATABASE_URL;
 const enabled={skip:!url};
@@ -30,7 +33,7 @@ before(async()=>{
 beforeEach(async()=>{if(!url)return;await pool.query('TRUNCATE moodboard_tool_requests,moodboard_oauth_tokens,moodboard_oauth_grants,moodboard_oauth_codes,moodboard_oauth_requests,moodboard_oauth_clients,auth_rate_limits,auth_reset_tokens,auth_sessions,auth_credentials,pins,projects,users RESTART IDENTITY CASCADE');});
 after(async()=>{if(server){server.closeAllConnections();await new Promise<void>(r=>server.close(r));}if(pool)await pool.end();});
 async function account(name:string){const r=await fetch(base+'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:name+'@example.com',password:'Isolated test password 2026!'})});assert.equal(r.status,201);return {user:await r.json(),cookie:r.headers.get('set-cookie')!.split(';')[0]};}
-async function client(){const r=await fetch(base+'/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_name:'Review ChatGPT fixture',redirect_uris:['https://callback.example.invalid/callback'],token_endpoint_auth_method:'none',grant_types:['authorization_code','refresh_token'],response_types:['code']})});assert.equal(r.status,201);return r.json();}
+async function client(redirectUri='https://callback.example.invalid/callback'){const r=await fetch(base+'/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_name:'Review ChatGPT fixture',redirect_uris:[redirectUri],token_endpoint_auth_method:'none',grant_types:['authorization_code','refresh_token'],response_types:['code']})});assert.equal(r.status,201);return r.json();}
 async function approved(cookie:string,scopes='boards:read boards:write exports:write'){
   const c=await client(),verifier='a'.repeat(64),challenge=createHash('sha256').update(verifier).digest('base64url');
   const q=new URLSearchParams({client_id:c.client_id,response_type:'code',redirect_uri:c.redirect_uris[0],code_challenge:challenge,code_challenge_method:'S256',resource:base+'/mcp',scope:scopes,state:'fixture-state'});
@@ -52,6 +55,60 @@ test('MCP discovery advertises S256/resource and anonymous calls require bearer 
   const resource=await(await fetch(base+'/.well-known/oauth-protected-resource/mcp')).json();assert.equal(resource.resource,base+'/mcp');
   const r=await rpc(undefined,'tools/list');assert.equal(r.status,401);assert.match(r.headers.get('www-authenticate')!,/resource_metadata/);
 });
+test('OAuth consent accepts a native browser form submission and preserves the callback state',{...enabled,timeout:45000},async(t)=>{
+  const executablePath=process.env.CHROMIUM_PATH||['/usr/bin/chromium','/usr/bin/google-chrome','/repl/tools/bin/chromium'].find(existsSync);
+  if(!executablePath||!existsSync(executablePath)){
+    assert.ok(!process.env.CI,'CI must provide CHROMIUM_PATH; OAuth browser consent cannot be skipped');
+    t.skip('Chromium not found');return;
+  }
+  const a=await account('browser-owner');
+  // A second local origin exercises the browser's cross-origin callback/CSP
+  // behavior without exposing the code to an external server or proxy.
+  const callbackServer=createServer((_req,res)=>{res.writeHead(200,{'Content-Type':'text/plain'});res.end('Local OAuth callback fixture');});
+  await new Promise<void>(resolve=>callbackServer.listen(0,'127.0.0.1',resolve));
+  const callbackOrigin='http://127.0.0.1:'+(callbackServer.address() as {port:number}).port;
+  let browser:Awaited<ReturnType<typeof chromium.launch>>|undefined;
+  try{
+    const c=await client(callbackOrigin+'/callback'),verifier='c'.repeat(64);
+    const q=new URLSearchParams({client_id:c.client_id,response_type:'code',redirect_uri:c.redirect_uris[0],code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256',resource:base+'/mcp',scope:'boards:read',state:'browser-fixture-state'});
+    const authorization=await fetch(base+'/authorize?'+q,{redirect:'manual'});assert.equal(authorization.status,302);
+    const consent=new URL(authorization.headers.get('location')!,base);
+    browser=await chromium.launch({executablePath,headless:true,timeout:15000,args:['--no-sandbox','--disable-dev-shm-usage']});
+    const context=await browser.newContext();
+    const cookieSeparator=a.cookie.indexOf('=');
+    await context.addCookies([{name:a.cookie.slice(0,cookieSeparator),value:a.cookie.slice(cookieSeparator+1),url:base}]);
+    const page=await context.newPage();
+    const browserErrors:string[]=[];
+    page.on('console',message=>{if(message.type()==='error')browserErrors.push(message.text());});
+    // All fixture URLs, including the registered redirect, are local. Block any
+    // unrelated initial request as an additional guard against external traffic.
+    await page.route(/^https?:\/\//,async route=>{
+      const target=new URL(route.request().url());
+      if([base,callbackOrigin].includes(target.origin))return route.continue();
+      return route.abort();
+    });
+    const consentResponse=await page.goto(consent.href,{waitUntil:'load',timeout:15000});
+    const formAction=consentResponse!.headers()['content-security-policy'].split(';').map(directive=>directive.trim()).find(directive=>directive.startsWith('form-action '));
+    assert.equal(formAction,"form-action 'self' "+callbackOrigin);
+    await page.getByText('Signed in as browser-owner@example.com.').waitFor();
+    const [submitted,response]=await Promise.all([
+      page.waitForRequest(request=>request.method()==='POST'&&new URL(request.url()).pathname==='/oauth/consent'),
+      page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/oauth/consent'),
+      page.waitForURL(callbackOrigin+'/callback?**',{timeout:15000}),
+      page.getByRole('button',{name:'Allow connection'}).click(),
+    ]).catch(error=>{for(const message of browserErrors)t.diagnostic(message);throw error;});
+    // Chromium supplies Origin itself. A no-referrer policy turns this into
+    // literal "null" and makes the genuine same-origin approval fail with 403.
+    const submittedHeaders=await submitted.allHeaders();
+    assert.equal(submittedHeaders.origin,base);
+    assert.equal(response.status(),302);
+    assert.equal(response.headers()['referrer-policy'],'no-referrer');
+    const callback=new URL(page.url());
+    assert.equal(callback.searchParams.get('state'),'browser-fixture-state');
+    const code=callback.searchParams.get('code');assert.ok(code);
+    assert.equal((await exchange({client:c,code,verifier})).status,200);
+  }finally{await browser?.close();callbackServer.closeAllConnections();await new Promise<void>(resolve=>callbackServer.close(()=>resolve()));}
+});
 test('OAuth enforces PKCE, redirect, resource, single-use code and password-reset boundaries',enabled,async()=>{
   const a=await account('owner');const c=await approved(a.cookie);
   assert.equal((await exchange(c,{code_verifier:'bad'})).status,400);
@@ -66,7 +123,7 @@ test('OAuth consent rejects cross-site approval and requires the matching signed
   const q=new URLSearchParams({client_id:c.client_id,response_type:'code',redirect_uri:c.redirect_uris[0],code_challenge:createHash('sha256').update('a'.repeat(64)).digest('base64url'),code_challenge_method:'S256',resource:base+'/mcp'});
   const r=await fetch(base+'/authorize?'+q,{redirect:'manual'}),consent=new URL(r.headers.get('location')!,base);
   const html=await(await fetch(consent,{headers:{Cookie:a.cookie}})).text(),csrf=html.match(/name="csrf" value="([a-f0-9]+)"/)![1];
-  for(const [cookie,origin]of [[a.cookie,'https://attacker.example.invalid'],[b.cookie,base]]){
+  for(const [cookie,origin]of [[a.cookie,'https://attacker.example.invalid'],[a.cookie,'null'],[b.cookie,base]]){
     const out=await fetch(consent,{method:'POST',redirect:'manual',headers:{Cookie:cookie,Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({ticket:consent.searchParams.get('ticket')!,csrf,decision:'allow'})});assert.notEqual(out.status,302);
   }
 });

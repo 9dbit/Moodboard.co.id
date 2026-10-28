@@ -136,8 +136,12 @@ export class MoodboardOAuthProvider implements OAuthServerProvider {
       WHERE t.grant_id=g.id AND t.token_hash=$1 AND g.client_id=$2`,[hashToken(request.token),client.client_id]);
   }
 }
-function page(res: Response, body: string) {
-  res.set({"Cache-Control":"no-store","Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'","Referrer-Policy":"no-referrer","X-Content-Type-Options":"nosniff"});
+function page(res: Response, body: string, redirectUri?: string) {
+  // Chromium checks form-action again after the approval redirects to the client.
+  // The callback comes from the server-validated, registered authorization request.
+  const formAction = redirectUri ? `'self' ${new URL(redirectUri).origin}` : "'self'";
+  // Preserve Origin on the same-origin consent POST; suppress referrers to other sites.
+  res.set({"Cache-Control":"no-store","Content-Security-Policy":`default-src 'none'; style-src 'unsafe-inline'; form-action ${formAction}; frame-ancestors 'none'; base-uri 'none'`,"Referrer-Policy":"same-origin","X-Content-Type-Options":"nosniff"});
   res.type("html").send(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Connect Moodboard Studio</title><style>body{font:16px system-ui;background:#faf8f5;color:#222;margin:0;padding:48px 20px}main{max-width:540px;margin:auto;background:white;padding:32px;border-radius:20px}button,a{padding:12px;display:inline-block}button{background:#ec7710;color:white;border:0;border-radius:8px;font:inherit}li{margin:12px 0}small{color:#555}</style><main>${body}</main></html>`);
 }
 export function registerMcpAuth(app: Express, provider: MoodboardOAuthProvider) {
@@ -157,7 +161,7 @@ export function registerMcpAuth(app: Express, provider: MoodboardOAuthProvider) 
     const csrf = newToken();
     await pool.query("UPDATE moodboard_oauth_requests SET csrf_hash=$2,user_id=$3 WHERE ticket_hash=$1",[hashToken(ticket),hashToken(csrf),req.dbUser.id]);
     const labels: Record<string,string> = {"boards:read":"Read your moodboards and reference images","boards:write":"Create and edit your moodboards","exports:write":"Generate PDF exports of your moodboards"};
-    page(res,`<h1>Connect Moodboard Studio</h1><p>Application: <strong>${escape(String(row.data.client_name || 'MCP client'))}</strong></p><small>Return address: ${escape(new URL(row.params.redirectUri).origin)}</small><p>Signed in as ${escape(req.dbUser.email || 'your Moodboard account')}.</p><ul>${row.params.scopes.map((s:string)=>`<li>${escape(labels[s]||s)}</li>`).join('')}</ul><p>You can revoke this access from your profile. Your password is never shared with this application.</p><form method="post"><input type="hidden" name="ticket" value="${ticket}"><input type="hidden" name="csrf" value="${csrf}"><button name="decision" value="allow">Allow connection</button> <button name="decision" value="deny">Cancel</button></form>`);
+    page(res,`<h1>Connect Moodboard Studio</h1><p>Application: <strong>${escape(String(row.data.client_name || 'MCP client'))}</strong></p><small>Return address: ${escape(new URL(row.params.redirectUri).origin)}</small><p>Signed in as ${escape(req.dbUser.email || 'your Moodboard account')}.</p><ul>${row.params.scopes.map((s:string)=>`<li>${escape(labels[s]||s)}</li>`).join('')}</ul><p>You can revoke this access from your profile. Your password is never shared with this application.</p><form method="post"><input type="hidden" name="ticket" value="${ticket}"><input type="hidden" name="csrf" value="${csrf}"><button name="decision" value="allow">Allow connection</button> <button name="decision" value="deny">Cancel</button></form>`,row.params.redirectUri);
   }catch(e){next(e);}});
   app.post("/oauth/consent",async(req,res,next)=>{try {
     if (!req.dbUser || req.get("origin") !== siteOrigin() || req.get("sec-fetch-site")==="cross-site") return void res.status(403).send("Sign in and approve from Moodboard");
